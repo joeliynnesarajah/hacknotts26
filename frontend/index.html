@@ -4,49 +4,81 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Wardrobe</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&display=swap">
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
   <!-- PERSON 3 — Interface. Plain HTML/JS so it runs with no build step.
-       Swap to React later if the team wants; the API stays the same. -->
-  <header>
-    <h1>Wardrobe</h1>
-    <div id="weather" class="weather">Loading weather…</div>
-  </header>
+       Swap to React later if the team wants; the API stays the same.
+       Styled after the closet computer in Clueless (1995).
+       Anything with an id is filled in or wired up by app.js; the look is all in style.css. -->
 
-  <main>
-    <section class="closet">
-      <div class="mode">
-        <button data-mode="separates" class="active">Top + bottom</button>
-        <button data-mode="dress">Dress</button>
+  <!-- Beige CRT casing > leopard-print screen -->
+  <div class="monitor">
+    <div class="screen">
+      <!-- Grey bar along the top; #weather is filled from GET /api/weather -->
+      <header class="titlebar">
+        <span>WARDROBE</span>
+        <span id="weather" class="weather">Loading weather…</span>
+      </header>
+
+      <!-- Three columns: STATUS | clothes | flat-lay + upload -->
+      <main class="desktop">
+        <!-- Left: MATCH/MISMATCH, score and reasons from POST /api/score -->
+        <aside class="window status">
+          <div class="win-title">STATUS</div>
+          <div class="win-body">
+            <div id="verdict" class="verdict">Pick an outfit</div>
+            <div id="score" class="score"></div>
+            <ul id="reasons" class="reasons"></ul>
+          </div>
+        </aside>
+
+        <!-- Middle: one white frame + ◀◀ ▶ ▶▶ per slot, built by renderCarousels() in app.js -->
+        <section class="stage">
+          <div id="carousels"></div>
+        </section>
+
+        <!-- Right: the outfit's photos side by side, and the upload form -->
+        <aside class="side">
+          <div class="window">
+            <div class="win-title">FLAT-LAY</div>
+            <div class="win-body"><div id="flatlay" class="flatlay"></div></div>
+          </div>
+          <div class="window">
+            <div class="win-title">ADD CLOTHES</div>
+            <div class="win-body">
+              <form id="upload">
+                <input type="text" name="name" placeholder="Name, e.g. Blue jumper" required>
+                <input type="file" name="photo" accept="image/*" required>
+                <button type="submit">Upload</button>
+              </form>
+              <p id="upload-msg" class="msg"></p>
+            </div>
+          </div>
+        </aside>
+      </main>
+
+      <!-- Big buttons. DRESS ME = suggest an outfit; LOVE IT / AS IF! = thumbs up/down
+           for the taste model; WEAR TODAY = logged so it isn't suggested again for a few days -->
+      <div class="controls">
+        <button id="suggest" class="big blue">Dress me</button>
+        <button id="like" class="big" title="I like this">Love it</button>
+        <button id="dislike" class="big" title="Not for me">As if!</button>
+        <button id="wear" class="big">Wear today</button>
       </div>
-      <div id="carousels"></div>
-    </section>
 
-    <section class="panel">
-      <div id="verdict" class="verdict">Pick an outfit</div>
-      <div id="score" class="score"></div>
-      <ul id="reasons" class="reasons"></ul>
+      <!-- Invisible overlay that flashes MATCH!/MISMATCH across the screen (flashStamp() in app.js) -->
+      <div id="stamp" class="stamp" aria-hidden="true"></div>
 
-      <div class="actions">
-        <button id="suggest">Suggest an outfit</button>
-        <button id="like" title="I like this">👍</button>
-        <button id="dislike" title="Not for me">👎</button>
-        <button id="wear">Wearing this today</button>
-      </div>
-
-      <h2>Flat-lay</h2>
-      <div id="flatlay" class="flatlay"></div>
-
-      <h2>Add clothes</h2>
-      <form id="upload">
-        <input type="text" name="name" placeholder="Name, e.g. Blue jumper" required>
-        <input type="file" name="photo" accept="image/*" required>
-        <button type="submit">Upload</button>
-      </form>
-      <p id="upload-msg" class="msg"></p>
-    </section>
-  </main>
+      <!-- Bottom menu bar. data-mode must match a key in SLOTS in app.js -->
+      <nav class="mode menubar">
+        <button data-mode="separates" class="active">Separates</button>
+        <button data-mode="dress">Dresses</button>
+      </nav>
+    </div>
+  </div>
 
   <script src="/static/app.js"></script>
 </body>

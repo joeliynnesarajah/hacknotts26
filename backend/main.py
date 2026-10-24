@@ -6,18 +6,13 @@ Run from the project root:
 Then open http://localhost:8000  (the frontend)
 and   http://localhost:8000/docs (interactive API docs — try every endpoint here)
 
-Endpoints
-  GET    /api/items              all items
-  POST   /api/items              add an item (JSON in the shared format)
-  POST   /api/items/upload       upload a photo -> Person 1's pipeline -> new item
-  DELETE /api/items/{id}         remove an item
-  POST   /api/score              score an outfit (list of item ids)
-  GET    /api/suggest            best outfits for today's weather
-  GET    /api/weather            today's weather
-  POST   /api/feedback           thumbs up/down (retrains the taste model)
-  POST   /api/worn               record that an outfit was worn today
+The frontend (frontend/app.js) and tests/test_api.py call these exact URLs,
+so keep the paths and reply shapes.
 
 TODO (Person 4):
+  - [ ] Setup: open the database, create the taste model, train it at startup
+  - [ ] Fill in every endpoint below
+  - [ ] Serve the item images and the frontend (bottom of the file)
   - [ ] Error handling for bad photos / unknown ids
   - [ ] Users and login if needed
 """
@@ -39,93 +34,84 @@ from shared.schema import Feedback, Item, Outfit, ScoredOutfit, Weather
 ROOT = Path(__file__).resolve().parent.parent
 
 app = FastAPI(title="Wardrobe API")
-conn = db.connect()
-db.init(conn)
-taste = TasteModel()
+
+# TODO: conn = database connection (db.connect, then db.init)
+# TODO: taste = TasteModel(), then retrain() once at startup
 
 
 def retrain() -> None:
-    fb = db.list_feedback(conn)
-    outfits = [db.get_items(conn, f.item_ids) for f in fb]
-    taste.train(outfits, [f.liked for f in fb])
-
-
-retrain()
+    """Train the taste model on all saved feedback: for each feedback, look up
+    its items, then taste.train(outfits, liked_list)."""
+    pass
 
 
 # ---- items ----
 @app.get("/api/items", response_model=List[Item])
 def list_items():
-    return db.list_items(conn)
+    """Every item."""
+    pass
 
 
 @app.post("/api/items", response_model=Item)
 def add_item(item: Item):
-    db.save_item(conn, item)
-    return item
+    """Save the item and return it."""
+    pass
 
 
 @app.post("/api/items/upload")
 async def upload_item(photo: UploadFile = File(...), name: str = Form("New item")):
-    from input_pipeline.pipeline import process_photo  # Person 1
-    try:
-        img = Image.open(io.BytesIO(await photo.read()))
-    except Exception:
-        raise HTTPException(400, "That file isn't an image")
-    item, needs_review = process_photo(img, name=name)
-    db.save_item(conn, item)
-    return {"item": item, "needs_review": needs_review}
+    """Open the photo with PIL (400 error if it isn't an image), pass it to
+    input_pipeline.pipeline.process_photo(img, name=name) -> (item, needs_review),
+    save the item, return {"item": item, "needs_review": needs_review}."""
+    pass
 
 
 @app.delete("/api/items/{item_id}")
 def delete_item(item_id: str):
-    for item in db.get_items(conn, [item_id]):
-        (ROOT / "data" / item.image).unlink(missing_ok=True)
-    db.delete_item(conn, item_id)
-    return {"deleted": item_id}
+    """Delete the item's image file in data/ as well as the row.
+    Return {"deleted": item_id}."""
+    pass
 
 
 # ---- outfits ----
 @app.post("/api/score", response_model=ScoredOutfit)
 def score(outfit: Outfit):
-    items = db.get_items(conn, outfit.item_ids)
-    if len(items) != len(outfit.item_ids):
-        raise HTTPException(404, "Unknown item id")
-    return rate(items, taste)
+    """Look up the items (404 if any id is unknown) and return rate(items, taste)."""
+    pass
 
 
 @app.get("/api/weather", response_model=Weather)
 def weather(lat: Optional[float] = None, lon: Optional[float] = None):
-    return get_weather(lat, lon) if lat is not None and lon is not None else get_weather()
+    """Today's weather, for lat/lon if given, otherwise the default location."""
+    pass
 
 
 @app.get("/api/suggest", response_model=List[ScoredOutfit])
 def suggest_outfits(top_n: int = 5, temperature_c: Optional[float] = None, avoid_recent: bool = True):
-    w = get_weather()
-    if temperature_c is not None:  # handy for testing: /api/suggest?temperature_c=3
-        w.temperature_c = temperature_c
-    exclude = db.recently_worn(conn) if avoid_recent else set()
-    return suggest(db.list_items(conn), w, taste, exclude, top_n)
+    """Best outfits for today's weather. temperature_c overrides the real temperature
+    (handy for testing: /api/suggest?temperature_c=3). If avoid_recent, skip items in
+    db.recently_worn. Return suggest(items, weather, taste, exclude, top_n)."""
+    pass
 
 
 @app.post("/api/feedback")
 def feedback(fb: Feedback):
-    db.save_feedback(conn, fb)
-    retrain()
-    return {"saved": True, "taste_model_trained": taste.model is not None}
+    """Save the thumbs up/down and retrain.
+    Return {"saved": True, "taste_model_trained": <is the model trained now?>}."""
+    pass
 
 
 @app.post("/api/worn")
 def worn(outfit: Outfit):
-    db.save_worn(conn, outfit.item_ids)
-    return {"saved": True}
+    """Record that this outfit was worn today. Return {"saved": True}."""
+    pass
 
 
 # ---- static files: item images + Person 3's frontend ----
-app.mount("/images", StaticFiles(directory=ROOT / "data" / "images"), name="images")
-app.mount("/static", StaticFiles(directory=ROOT / "frontend"), name="static")
+# TODO: serve data/images at /images and frontend/ at /static (StaticFiles)
 
 
 @app.get("/")
 def index():
-    return FileResponse(ROOT / "frontend" / "index.html")
+    """Return frontend/index.html."""
+    pass

@@ -1,45 +1,245 @@
+/* PERSON 3 — Styling, after the closet computer in Clueless (1995).
+   Layout, outside in:
+     body (dark room) > .monitor (beige CRT casing) > .screen (leopard print)
+       > .titlebar, .desktop (three columns), .controls (big buttons), .menubar
+   Change colours in :root below and they update everywhere. */
+
 :root {
-  --bg: #fdf6f0;
-  --ink: #2b2231;
-  --muted: #7d7280;
-  --accent: #d6336c;
-  --card: #ffffff;
-  --line: #ecdfe4;
-  --good: #2f9e44;
-  --bad: #e03131;
+  --room: #1e1715;        /* page background behind the monitor */
+  --bezel: #e4dac4;       /* monitor casing, top of gradient */
+  --bezel-dark: #c9bea5;  /* monitor casing, bottom of gradient */
+  --grey: #c0c0c0;        /* Windows 3.1 grey for buttons and windows */
+  --hi: #ffffff;          /* bevel highlight (top/left edges) */
+  --lo: #6b6b6b;          /* bevel shadow (bottom/right edges) */
+  --ink: #111111;         /* text */
+  --blue: #2433b8;        /* window title bars, DRESS ME, active menu item */
+  --good: #1f9e3a;        /* MATCH */
+  --bad: #e0142b;         /* MISMATCH */
+  /* Leopard print, drawn as a 180x180 SVG tile that repeats across the screen.
+     Each <ellipse> is one rosette: orange-brown fill with a dashed dark outline
+     (the dashes make the broken ring). The <circle>s are the small solid spots.
+     Colours are written %23 instead of # because # isn't allowed in a data URL. */
+  --leopard: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><rect width='180' height='180' fill='%23d8a25a'/><g fill='%23a9621f' stroke='%232a1a0d' stroke-width='5' stroke-linecap='round' stroke-dasharray='16 7'><ellipse cx='30' cy='28' rx='16' ry='12' transform='rotate(-20 30 28)'/><ellipse cx='100' cy='20' rx='13' ry='10' transform='rotate(15 100 20)'/><ellipse cx='155' cy='58' rx='15' ry='12'/><ellipse cx='65' cy='82' rx='14' ry='11' transform='rotate(30 65 82)'/><ellipse cx='125' cy='108' rx='16' ry='12' transform='rotate(-10 125 108)'/><ellipse cx='25' cy='132' rx='13' ry='11'/><ellipse cx='85' cy='152' rx='15' ry='11' transform='rotate(20 85 152)'/><ellipse cx='158' cy='160' rx='12' ry='10'/></g><g fill='%232a1a0d'><circle cx='62' cy='40' r='4'/><circle cx='140' cy='14' r='3'/><circle cx='100' cy='64' r='3.5'/><circle cx='14' cy='80' r='4'/><circle cx='170' cy='110' r='3'/><circle cx='55' cy='117' r='3'/><circle cx='120' cy='162' r='4'/><circle cx='40' cy='170' r='3'/></g></svg>");
 }
-* { box-sizing: border-box; }
-body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--ink); }
-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 24px; border-bottom: 2px solid var(--line); }
-h1 { margin: 0; font-size: 1.6rem; letter-spacing: 0.04em; color: var(--accent); }
-h2 { font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 24px 0 8px; }
-.weather { color: var(--muted); font-size: 0.95rem; }
+* { box-sizing: border-box; } /* widths include padding and border, so sizes add up predictably */
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "VT323", "Courier New", monospace; /* VT323 = pixel font from Google Fonts (see index.html) */
+  font-size: 20px; /* VT323 is small, so the base size is bumped up */
+  color: var(--ink);
+  background: radial-gradient(ellipse at center, #3a2c27 0%, var(--room) 70%); /* dim "room" glow */
+  padding: 24px 16px;
+}
 
-main { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; padding: 24px; max-width: 1100px; margin: 0 auto; }
-@media (max-width: 760px) { main { grid-template-columns: 1fr; padding: 16px; } }
+/* --- The CRT --- */
+.monitor { /* the beige plastic casing round the screen */
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 32px 32px 48px; /* extra at the bottom = the chunky chin under the screen */
+  background: linear-gradient(180deg, var(--bezel) 0%, var(--bezel-dark) 100%);
+  border-radius: 28px;
+  /* light edge on top, dark edge on bottom (moulded plastic look), then a drop shadow */
+  box-shadow: inset 0 2px 0 #fff8e8, inset 0 -4px 0 #a99e86, 0 20px 50px rgba(0, 0, 0, 0.6);
+  position: relative; /* so the power light can be positioned inside it */
+}
+.monitor::after { /* power light, bottom right of the casing */
+  content: "";
+  position: absolute;
+  right: 40px;
+  bottom: 18px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #4cff6a;
+  box-shadow: 0 0 8px #4cff6a; /* glow */
+}
+.screen { /* the glass: leopard print with dark edges, like an old curved tube */
+  position: relative; /* the scanlines and the MATCH/MISMATCH stamp sit on top of this */
+  overflow: hidden;
+  border-radius: 16px;
+  background: var(--leopard) #d8a25a;
+  border: 4px solid #8f8670;
+  box-shadow: inset 0 0 80px rgba(0, 0, 0, 0.55); /* darkens the edges */
+}
+.screen::after { /* scanlines: a thin dark line every 3px over everything */
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none; /* clicks pass straight through to the buttons underneath */
+  background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.12) 0 1px, transparent 1px 3px);
+}
 
-button { font: inherit; border: 2px solid var(--ink); background: var(--card); color: var(--ink); border-radius: 999px; padding: 8px 16px; cursor: pointer; }
-button:hover { background: var(--ink); color: var(--bg); }
-button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+/* --- Bevelled Win-3.1 bits ---
+   The 3D look is just border colours: white on top/left, grey on bottom/right
+   looks raised. Swapping them (see button:active) looks pressed in. */
+.titlebar, .menubar, .win-title, button, .carousel .vcr {
+  background: var(--grey);
+  border: 2px solid;
+  border-color: var(--hi) var(--lo) var(--lo) var(--hi); /* top right bottom left */
+}
+.titlebar { /* "WARDROBE" on the left, weather on the right */
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin: 10px 10px 0;
+  padding: 2px 12px;
+  font-size: 1.1rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+.weather { letter-spacing: 0.05em; }
 
-.mode { display: flex; gap: 8px; margin-bottom: 16px; }
-.carousel { display: flex; align-items: center; gap: 12px; background: var(--card); border: 2px solid var(--line); border-radius: 16px; padding: 8px; margin-bottom: 12px; }
-.carousel button { padding: 6px 12px; font-size: 1.2rem; }
-.carousel figure { flex: 1; margin: 0; text-align: center; }
-.carousel img { height: 150px; width: 150px; object-fit: contain; }
-.carousel figcaption { font-size: 0.9rem; color: var(--muted); }
-.carousel .label { width: 70px; font-size: 0.8rem; text-transform: uppercase; color: var(--muted); text-align: center; }
+button {
+  font: inherit; /* buttons don't inherit the page font by default */
+  color: var(--ink);
+  padding: 4px 14px;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+button:hover { background: #d4d4d4; }
+button:active, button.active { /* pressed in: bevel colours swapped */
+  border-color: var(--lo) var(--hi) var(--hi) var(--lo);
+  background: #a8a8a8;
+}
 
-.verdict { font-size: 2.6rem; font-weight: 800; letter-spacing: 0.06em; }
+/* A grey window with a blue title strip (STATUS, FLAT-LAY, ADD CLOTHES) */
+.window { background: var(--grey); border: 2px solid; border-color: var(--hi) var(--lo) var(--lo) var(--hi); box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.45); }
+.win-title { background: var(--blue); color: #fff; padding: 0 8px; letter-spacing: 0.12em; border-color: #5b67d6 #10186a #10186a #5b67d6; }
+.win-body { padding: 10px; }
+
+/* --- Layout ---
+   Three columns: STATUS | clothes | flat-lay + upload. The middle one has a fixed
+   width range, the sides share the rest. */
+.desktop {
+  display: grid;
+  grid-template-columns: 1fr minmax(240px, 300px) 1fr;
+  gap: 20px;
+  grid-template-rows: 680px; /* fixed: same size for dress or separates */
+  align-items: start;
+  padding: 20px;
+}
+/* Side windows scroll instead of making the screen taller */
+.status, .side { max-height: 100%; overflow-y: auto; }
+.side { display: grid; align-content: start; gap: 20px; padding: 0 4px 4px 0; } /* padding leaves room for the window shadows */
+
+/* --- Carousels: white frame + VCR strip ---
+   #carousels is a fixed-height column. Each .carousel has flex: 1 so they share
+   the height equally: three slots get a third each, and in dress mode the dress
+   gets flex-grow: 2, so it takes the space of top + bottom and the shoes stay the same. */
+#carousels { display: flex; flex-direction: column; gap: 14px; height: 680px; }
+.carousel { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.45); }
+.carousel.slot-dress { flex-grow: 2; } /* dress fills the top + bottom space */
+.carousel figure { /* the white picture frame, sunk into the screen */
+  flex: 1 1 0; /* fill whatever space is left above the VCR buttons */
+  min-height: 0; /* lets flex items shrink below their content size */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  position: relative; /* so the category label can sit in the corner */
+  margin: 0;
+  background: #fff;
+  border: 3px solid;
+  border-color: var(--lo) var(--hi) var(--hi) var(--lo); /* sunken bevel */
+  text-align: center;
+  padding: 18px 8px 4px; /* top padding leaves room for the label */
+}
+/* The photo shrinks to fit the frame (rather than the frame growing to fit the photo) */
+.carousel img { flex: 1 1 0; min-height: 0; width: 100%; object-fit: contain; display: block; }
+.carousel figcaption { font-size: 1rem; text-transform: uppercase; letter-spacing: 0.05em; }
+.carousel .label { /* "TOP", "SHOES" etc. in the top-left corner of the frame */
+  position: absolute;
+  top: 2px;
+  left: 6px;
+  font-size: 0.9rem;
+  color: var(--lo);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+.carousel .vcr { display: flex; justify-content: center; gap: 4px; padding: 4px; } /* ◀◀ ▶ ▶▶ strip */
+.carousel .vcr button { padding: 0 12px; font-size: 1rem; letter-spacing: -0.15em; } /* tight spacing squashes ◀◀ together */
+
+/* --- Status window --- */
+.verdict { font-size: 2.8rem; line-height: 1; letter-spacing: 0.06em; text-transform: uppercase; }
 .verdict.match { color: var(--good); }
-.verdict.mismatch { color: var(--bad); }
-.score { color: var(--muted); margin-bottom: 8px; }
-.reasons { padding-left: 18px; margin: 0; line-height: 1.6; }
-.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.verdict.mismatch { color: var(--bad); animation: blink 0.8s steps(1) infinite; } /* keeps blinking */
+@keyframes blink { 50% { opacity: 0.2; } } /* steps(1) = hard on/off, no fade */
+.score { margin: 6px 0; }
+.reasons { padding-left: 18px; margin: 0; line-height: 1.15; }
 
-.flatlay { position: relative; display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; background: var(--card); border: 2px solid var(--line); border-radius: 16px; padding: 16px; min-height: 200px; }
-.flatlay img { width: 100%; aspect-ratio: 1; object-fit: contain; }
+/* --- Full-screen verdict flash ---
+   #stamp covers the whole screen but is invisible (opacity 0) until app.js
+   adds the "show" class, which plays the animation once: blink a few times, then vanish. */
+.stamp {
+  position: absolute;
+  inset: 0; /* stretch over the whole .screen */
+  z-index: 5; /* above the windows */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none; /* never blocks clicks */
+  font-size: clamp(4rem, 14vw, 11rem); /* scales with window width, within limits */
+  letter-spacing: 0.08em;
+  text-shadow: 6px 6px 0 #000, -2px -2px 0 #fff; /* hard shadow so it reads on leopard print */
+  opacity: 0;
+}
+.stamp.match { color: var(--good); }
+.stamp.mismatch { color: var(--bad); }
+.stamp.show { animation: stamp 2.2s steps(1) forwards; } /* forwards = stay hidden at the end */
+@keyframes stamp { /* on, off, on, off, on, off, on, then gone at 60% (~1.3s) */
+  0%, 20%, 40%, 60% { opacity: 1; }
+  10%, 30%, 50% { opacity: 0; }
+  100% { opacity: 0; }
+}
+
+/* --- Flat-lay & upload --- */
+.flatlay { /* the outfit's photos side by side, up to 3 per row */
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  min-height: 140px;
+  background: #fff;
+  border: 3px solid;
+  border-color: var(--lo) var(--hi) var(--hi) var(--lo);
+  padding: 8px;
+}
+.flatlay img { width: 100%; aspect-ratio: 1; object-fit: contain; } /* square, whole photo visible */
 
 form { display: flex; flex-wrap: wrap; gap: 8px; }
-input[type=text] { flex: 1; min-width: 160px; padding: 8px 12px; border: 2px solid var(--line); border-radius: 999px; font: inherit; }
-.msg { color: var(--muted); font-size: 0.9rem; }
+input { font: inherit; font-size: 1rem; }
+input[type=text] { /* sunken white text box */
+  flex: 1;
+  min-width: 140px;
+  padding: 2px 6px;
+  background: #fff;
+  border: 2px solid;
+  border-color: var(--lo) var(--hi) var(--hi) var(--lo);
+}
+input[type=file] { max-width: 100%; }
+.msg { margin: 8px 0 0; font-size: 1rem; } /* upload / feedback messages */
+
+/* --- Big buttons & menu bar --- */
+.controls { display: flex; justify-content: center; flex-wrap: wrap; gap: 14px; padding: 0 20px 16px; }
+.big { font-size: 1.5rem; padding: 6px 22px; border-width: 3px; box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.5); }
+.big.blue { background: var(--blue); color: #fff; border-color: #6c78e6 #0c1258 #0c1258 #6c78e6; } /* DRESS ME */
+.big.blue:hover { background: #3344d6; }
+
+/* Grey strip along the bottom. Items are flat until hovered; the active mode is blue. */
+.menubar { display: flex; justify-content: center; gap: 4px; margin: 0 10px 10px; padding: 2px; }
+.menubar button { border-color: transparent; background: transparent; padding: 0 16px; }
+.menubar button:hover { border-color: var(--hi) var(--lo) var(--lo) var(--hi); }
+.menubar button.active { background: var(--blue); color: #fff; border-color: var(--lo) var(--hi) var(--hi) var(--lo); }
+
+/* --- Phones: drop the bezel, stack everything --- */
+@media (max-width: 860px) {
+  body { padding: 0; }
+  .monitor { padding: 0; border-radius: 0; box-shadow: none; }
+  .monitor::after { display: none; }
+  .screen { border-radius: 0; border: 0; }
+  .desktop { grid-template-columns: 1fr; grid-template-rows: none; padding: 16px; } /* one column, any height */
+  #carousels { height: 600px; } /* still fixed, so dress vs separates doesn't jump */
+  .stage { order: -1; } /* clothes first, above STATUS */
+  .verdict { font-size: 2.2rem; }
+}
