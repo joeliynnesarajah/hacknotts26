@@ -11,6 +11,13 @@ const categories = {
   dress: ["dress", "shoes"],
 };
 
+// Photoreal try-on state. "Dress me" can add a coat when it's cold; the paper doll has no coat
+// slot, so those extra items ride along here and are included in the AI render only.
+let extraIds = [];
+let renderToken = 0;       // bumping it cancels any render we're still waiting for
+const RENDER_POLL_MS = 2000;
+const RENDER_GIVE_UP_MS = 200000; // longer than the backend's worst case (two models x 90s timeout)
+
 async function api(path, options = {}) {
   const response = await fetch(path, {
     headers: options.body instanceof FormData ? {} : { "Content-Type": "application/json" },
@@ -163,11 +170,103 @@ async function scoreOutfit(announceChange = false) {
 }
 
 function refresh(announceChange = false) {
+  clearRender(); // any AI photo on screen shows the previous outfit
+  extraIds = [];  // a coat from "Dress me" belongs to that pick only
   renderSlots();
   renderLayers();
   scoreOutfit(announceChange).catch((error) => {
     $("try-on-status").textContent = `Couldn't score outfit: ${error.message}`;
   });
+}
+
+// ---- photoreal try-on (backend: POST /api/try-on/render, see input_pipeline/tryon_render.py) ----
+function outfitIds() {
+  return [...currentOutfit().map((item) => item.id), ...extraIds];
+}
+
+function clearRender() {
+  renderToken += 1;
+  const img = $("ai-render");
+  img.classList.remove("visible");
+  img.hidden = true;
+  $("ai-badge").hidden = true;
+  $("render-overlay").hidden = true;
+}
+
+function showRender(url, token, model) {
+  const img = $("ai-render");
+  const preload = new Image();
+  preload.onload = () => {
+    if (token !== renderToken) return; // the outfit changed while it loaded
+    img.src = url;
+    img.hidden = false;
+    $("render-overlay").hidden = true;
+    $("ai-badge").hidden = false;
+    requestAnimationFrame(() => img.classList.add("visible")); // fade in over the doll
+    $("try-on-status").textContent = model ? `Photo by ${model.split("/").pop()}.` : "Photo ready.";
+  };
+  preload.onerror = () => renderFailed(token, "couldn't load the photo");
+  preload.src = url;
+}
+
+function renderFailed(token, reason) {
+  if (token !== renderToken) return;
+  $("render-overlay").hidden = true;
+  $("try-on-status").textContent = `Photo unavailable (${reason}). Showing the paper doll.`;
+}
+
+async function requestRender(note = "") {
+  const ids = outfitIds();
+  if (!ids.length) return;
+  clearRender();
+  const token = renderToken;
+  $("render-overlay").hidden = false;
+  $("try-on-status").textContent = `${note}Dressing the model… (about 25 seconds)`;
+  const started = Date.now();
+  try {
+    let status = await api("/api/try-on/render", {
+      method: "POST",
+      body: JSON.stringify({ item_ids: ids, person: "avatar" }),
+    });
+    while (status.status === "pending") {
+      if (token !== renderToken) return; // cancelled: the user picked something else
+      if (Date.now() - started > RENDER_GIVE_UP_MS) return renderFailed(token, "took too long");
+      await new Promise((resolve) => setTimeout(resolve, RENDER_POLL_MS));
+      if (token !== renderToken) return;
+      status = await api(`/api/try-on/render/${status.key}`);
+    }
+    if (status.status === "done") showRender(status.url, token, status.model);
+    else if (status.status === "off") renderFailed(token, "photo mode is switched off");
+    else renderFailed(token, status.reason || "render failed");
+  } catch (error) {
+    renderFailed(token, error.message);
+  }
+}
+
+// DRESS ME: a random good match (never the outfit already on screen), then photograph it
+async function dressMe() {
+  const button = $("try-on-dress-me");
+  button.disabled = true;
+  try {
+    const avoid = outfitIds().join(",");
+    const pick = await api(`/api/outfit/random?avoid=${encodeURIComponent(avoid)}`);
+    const chosen = pick.item_ids.map((id) => items.find((item) => item.id === id)).filter(Boolean);
+    selectCategory(chosen.some((item) => item.category === "dress") ? "dress" : "top");
+    for (const item of chosen) {
+      const position = itemsFor(item.category).findIndex((candidate) => candidate.id === item.id);
+      if (position >= 0 && item.category in positions) positions[item.category] = position;
+    }
+    refresh(true);
+    // Items with no paper-doll slot (a coat on a cold day) only appear in the photo
+    const extras = chosen.filter((item) => !categories[mode].includes(item.category));
+    extraIds = extras.map((item) => item.id);
+    // Not awaited: Dress me works again straight away (a new pick cancels this render)
+    requestRender(extras.length ? `Plus ${extras.map((item) => item.name).join(", ")} for today's weather. ` : "");
+  } catch (error) {
+    $("try-on-status").textContent = `Couldn't pick an outfit: ${error.message}`;
+  } finally {
+    button.disabled = false;
+  }
 }
 
 function step(category, delta) {
@@ -179,6 +278,7 @@ function step(category, delta) {
 }
 
 function setAvatar(url) {
+  clearRender(); // a photo of the old person no longer applies
   const mannequin = $("mannequin");
   const fallback = 'url("/static/cher-silhouette.svg")';
   if (!url) {
@@ -315,6 +415,8 @@ async function init() {
     }
   };
 
+  $("try-on-dress-me").onclick = () => dressMe();
+  $("try-on-render").onclick = () => requestRender();
   $("try-on-like").onclick = () => submitFeedback(true);
   $("try-on-dislike").onclick = () => submitFeedback(false);
   $("try-on-status").textContent = "Choose items to try another look.";

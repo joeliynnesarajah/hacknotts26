@@ -28,10 +28,16 @@
         <section class="window try-on-doll-panel">
           <div class="win-title">THE OUTFIT</div>
           <div class="win-body">
-            <div id="mannequin" role="img" aria-label="Outfit try-on mannequin">
-              <img id="layer-torso" class="layer torso" alt="">
-              <img id="layer-legs" class="layer legs" alt="">
-              <img id="layer-feet" class="layer feet" alt="">
+            <!-- The paper doll shows instantly; the AI photo (POST /api/try-on/render) fades in over it -->
+            <div class="tryon-stage">
+              <div id="mannequin" role="img" aria-label="Outfit try-on mannequin">
+                <img id="layer-torso" class="layer torso" alt="">
+                <img id="layer-legs" class="layer legs" alt="">
+                <img id="layer-feet" class="layer feet" alt="">
+              </div>
+              <img id="ai-render" class="ai-render" alt="Photo of the outfit being worn" hidden>
+              <span id="ai-badge" class="ai-badge" hidden>AI RENDER</span>
+              <div id="render-overlay" class="render-overlay" hidden><span>PROCESSING…</span></div>
             </div>
             <p id="try-on-status" class="try-on-status" role="status">Loading wardrobe…</p>
           </div>
@@ -75,6 +81,8 @@
       </main>
 
       <div class="controls try-on-controls">
+        <button id="try-on-dress-me" class="big blue" title="A random good match, photographed">Dress me</button>
+        <button id="try-on-render" class="big" title="Photograph the outfit you've picked">Photo</button>
         <button id="try-on-like" class="big">Love it</button>
         <button id="try-on-dislike" class="big">As if!</button>
       </div>

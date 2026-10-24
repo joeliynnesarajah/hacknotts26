@@ -197,7 +197,7 @@ function refresh() {
 // Jump the carousels to a suggested outfit (used by DRESS ME).
 // Switches to dress mode if the outfit has a dress, then points each carousel at the right item.
 function showOutfit(itemIds) {
-  const chosen = itemIds.map((id) => items.find((it) => it.id === id));
+  const chosen = itemIds.map((id) => items.find((it) => it.id === id)).filter(Boolean);
   mode = chosen.some((it) => it.category === "dress") ? "dress" : "separates";
   document.querySelectorAll(".mode button").forEach((b) => b.classList.toggle("active", b.dataset.mode === mode));
   for (const it of chosen) {
@@ -248,11 +248,20 @@ async function init() {
     };
   });
 
-  // DRESS ME — ask the backend for the best outfits for today's weather and show the top one
+  // DRESS ME — a random good match for today's weather (different every press, never the
+  // outfit already on screen). Higher-scoring matches are more likely; see pick_outfit().
   $("suggest").onclick = async () => {
-    const [best] = await api("/api/suggest?top_n=5");
-    if (best) showOutfit(best.item_ids);
-    else $("verdict").textContent = "Nothing suits today's weather";
+    try {
+      const avoid = currentOutfit().map((it) => it.id).join(",");
+      const pick = await api(`/api/outfit/random?avoid=${encodeURIComponent(avoid)}`);
+      showOutfit(pick.item_ids);
+      // A coat on a cold day has no carousel slot, so mention it
+      const coats = pick.item_ids.map((id) => items.find((it) => it.id === id))
+        .filter((it) => it && it.category === "outerwear");
+      $("upload-msg").textContent = coats.length ? `Add the ${coats.map((c) => c.name).join(", ")}: it's chilly out.` : "";
+    } catch (err) {
+      $("verdict").textContent = "Nothing to wear yet";
+    }
   };
   $("like").onclick = () => sendFeedback(true);
   $("dislike").onclick = () => sendFeedback(false);
