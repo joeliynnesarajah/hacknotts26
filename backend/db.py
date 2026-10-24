@@ -4,7 +4,6 @@ PERSON 4 — Database layer (SQLite).
 Tables
   items     one row per clothing item (stored as JSON in the shared Item format)
   feedback  thumbs up/down on outfits  -> Person 2 trains on this
-  worn      what was worn on which day -> used to avoid repeats
   tag_meta  where an item's tags came from (pollinations/gemini/clip/placeholder/manual),
             how confident the tagger was, and whether a human should check them
 
@@ -19,7 +18,6 @@ import json
 import os
 import sqlite3
 import threading
-from datetime import date
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -66,11 +64,6 @@ def init(conn: sqlite3.Connection, seed: bool = True) -> None:
             item_ids TEXT NOT NULL,
             liked    INTEGER NOT NULL,
             created  TEXT DEFAULT CURRENT_TIMESTAMP
-        );
-        CREATE TABLE IF NOT EXISTS worn (
-            id       INTEGER PRIMARY KEY AUTOINCREMENT,
-            item_ids TEXT NOT NULL,
-            day      TEXT NOT NULL
         );
         CREATE TABLE IF NOT EXISTS tag_meta (
             item_id        TEXT PRIMARY KEY,
@@ -162,20 +155,3 @@ def save_feedback(conn, fb: Feedback) -> None:
 def list_feedback(conn) -> List[Feedback]:
     return [Feedback(item_ids=json.loads(r["item_ids"]), liked=bool(r["liked"]))
             for r in conn.execute("SELECT item_ids, liked FROM feedback")]
-
-
-# ---- wear history ----
-@_locked
-def save_worn(conn, item_ids: List[str], day: date | None = None) -> None:
-    conn.execute("INSERT INTO worn (item_ids, day) VALUES (?, ?)",
-                 (json.dumps(item_ids), (day or date.today()).isoformat()))
-    conn.commit()
-
-
-@_locked
-def recently_worn(conn, days: int = 3) -> set[str]:
-    rows = conn.execute("SELECT item_ids FROM worn WHERE day >= date('now', ?)", (f"-{days} days",))
-    worn: set[str] = set()
-    for r in rows:
-        worn.update(json.loads(r["item_ids"]))
-    return worn

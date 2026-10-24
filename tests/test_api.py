@@ -26,7 +26,7 @@ def test_unknown_item():
 
 
 def test_suggest():
-    r = client.get("/api/suggest", params={"temperature_c": 18, "avoid_recent": False})
+    r = client.get("/api/suggest", params={"temperature_c": 18})
     assert r.status_code == 200
     assert r.json(), "expected at least one suggestion"
 

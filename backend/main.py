@@ -18,7 +18,6 @@ Endpoints
   GET    /api/suggest                 best outfits for today's weather
   GET    /api/weather                 today's weather
   POST   /api/feedback                thumbs up/down (retrains the taste model)
-  POST   /api/worn                    record that an outfit was worn today
 
 TODO (Person 4):
   - [ ] Users and login if needed
@@ -177,12 +176,11 @@ def weather(lat: Optional[float] = None, lon: Optional[float] = None):
 
 
 @app.get("/api/suggest", response_model=List[ScoredOutfit])
-def suggest_outfits(top_n: int = 5, temperature_c: Optional[float] = None, avoid_recent: bool = True):
+def suggest_outfits(top_n: int = 5, temperature_c: Optional[float] = None):
     w = get_weather()
     if temperature_c is not None:  # handy for testing: /api/suggest?temperature_c=3
         w.temperature_c = temperature_c
-    exclude = db.recently_worn(conn) if avoid_recent else set()
-    return suggest(db.list_items(conn), w, taste, exclude, top_n)
+    return suggest(db.list_items(conn), w, taste, exclude_ids=set(), top_n=top_n)
 
 
 @app.post("/api/feedback")
@@ -190,47 +188,6 @@ def feedback(fb: Feedback):
     db.save_feedback(conn, fb)
     retrain()
     return {"saved": True, "taste_model_trained": taste.model is not None}
-
-
-@app.post("/api/worn")
-def worn(outfit: Outfit):
-    db.save_worn(conn, outfit.item_ids)
-    return {"saved": True}
-
-
-# ---- avatar for the paper-doll try-on ----
-AVATAR_PATH = ROOT / "data" / "images" / "avatar.png"
-
-
-@app.post("/api/avatar")
-async def upload_avatar(file: UploadFile = File(...)):
-    """Upload a full-body photo; rembg strips the background and saves avatar.png."""
-    from input_pipeline.background import remove_background
-    try:
-        img = Image.open(io.BytesIO(await file.read()))
-        img.load()
-    except Exception:
-        raise HTTPException(400, "That file isn't an image")
-    try:
-        cutout = await run_in_threadpool(remove_background, img)
-    except Exception as exc:
-        logging.getLogger(__name__).exception("avatar background removal failed")
-        raise HTTPException(400, f"Couldn't process that photo ({type(exc).__name__})")
-    AVATAR_PATH.parent.mkdir(parents=True, exist_ok=True)
-    cutout.save(AVATAR_PATH)
-    return {"url": "/images/avatar.png"}
-
-
-@app.get("/api/avatar")
-def get_avatar():
-    return {"url": "/images/avatar.png"} if AVATAR_PATH.exists() else {"url": None}
-
-
-@app.delete("/api/avatar")
-def delete_avatar():
-    if AVATAR_PATH.exists():
-        AVATAR_PATH.unlink()
-    return {"url": None}
 
 
 # ---- static files: item images + Person 3's frontend ----
@@ -241,8 +198,3 @@ app.mount("/static", StaticFiles(directory=ROOT / "frontend"), name="static")
 @app.get("/")
 def index():
     return FileResponse(ROOT / "frontend" / "index.html")
-
-
-@app.get("/try-on")
-def try_on():
-    return FileResponse(ROOT / "frontend" / "try-on.html")

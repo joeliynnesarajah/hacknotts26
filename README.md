@@ -1,6 +1,7 @@
 # Wardrobe — a Clueless-style outfit picker
 
 Flip through your clothes, and the app tells you whether the outfit is a **MATCH** or a **MISMATCH**, suggests outfits for today's weather, and learns your taste from 👍 / 👎.
+Choose **My clothes** to browse your full wardrobe and delete individual items.
 
 This is a **starter template**: everything runs end to end with simple versions of each part, and every file has a `TODO` list for its owner.
 
@@ -47,7 +48,7 @@ python scripts/check_tagger.py path/to/kaggle-dataset --count 30   # accuracy ch
 | **1 — Wardrobe input** | `input_pipeline/` | Photo → cut-out → colors → tags → Item | Pillow, rembg, scikit-learn KMeans, CLIP |
 | **2 — Outfit logic** | `outfit_logic/` | Build outfits, score them, learn from feedback | NumPy, scikit-learn |
 | **3 — Interface** | `frontend/` | Carousels, verdict, flat-lay, upload | HTML/CSS/JS (React later if wanted) |
-| **4 — Backend & integration** | `backend/`, `tests/` | Database, API, weather, wear history, joining it all | FastAPI, SQLite, Open-Meteo, pytest |
+| **4 — Backend & integration** | `backend/`, `tests/` | Database, API, weather, joining it all | FastAPI, SQLite, Open-Meteo, pytest |
 
 **Shared by everyone:** `shared/schema.py` — the item format. Don't change it without telling the team.
 
@@ -84,7 +85,7 @@ frontend/                 PERSON 3
   index.html, style.css, app.js
 backend/                  PERSON 4
   main.py                 FastAPI endpoints
-  db.py                   SQLite tables (items, feedback, worn, tag_meta)
+  db.py                   SQLite tables (items, feedback, tag_meta)
   weather.py              Open-Meteo weather
 shared/env.py             loads API keys from keys.env
 scripts/
