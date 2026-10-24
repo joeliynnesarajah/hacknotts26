@@ -1,0 +1,4 @@
+# Optional, large downloads (Person 1). The app works without these, using simple fallbacks.
+rembg[cpu]       # background removal
+transformers     # CLIP tagging
+torch

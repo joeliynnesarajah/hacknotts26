@@ -1,0 +1,24 @@
+[
+  {"id": "t1", "name": "White T-shirt", "image": "images/t1.png", "category": "top", "colors": ["#f4f4f2"], "pattern": "solid", "formality": 1, "seasons": ["spring", "summer", "autumn"], "warmth": 1},
+  {"id": "t2", "name": "Navy Oxford shirt", "image": "images/t2.png", "category": "top", "colors": ["#1f3a5f"], "pattern": "solid", "formality": 3, "seasons": ["spring", "summer", "autumn", "winter"], "warmth": 2},
+  {"id": "t3", "name": "Red striped top", "image": "images/t3.png", "category": "top", "colors": ["#c0392b", "#f4f4f2"], "pattern": "stripe", "formality": 2, "seasons": ["spring", "summer"], "warmth": 1},
+  {"id": "t4", "name": "Grey knit jumper", "image": "images/t4.png", "category": "top", "colors": ["#8a8d91"], "pattern": "solid", "formality": 2, "seasons": ["autumn", "winter"], "warmth": 4},
+  {"id": "t5", "name": "Yellow floral blouse", "image": "images/t5.png", "category": "top", "colors": ["#f2c94c", "#6fa86b"], "pattern": "floral", "formality": 3, "seasons": ["spring", "summer"], "warmth": 1},
+  {"id": "t6", "name": "Black turtleneck", "image": "images/t6.png", "category": "top", "colors": ["#1b1b1b"], "pattern": "solid", "formality": 3, "seasons": ["autumn", "winter"], "warmth": 3},
+
+  {"id": "b1", "name": "Blue jeans", "image": "images/b1.png", "category": "bottom", "colors": ["#3b5b8c"], "pattern": "solid", "formality": 2, "seasons": ["spring", "summer", "autumn", "winter"], "warmth": 3},
+  {"id": "b2", "name": "Black trousers", "image": "images/b2.png", "category": "bottom", "colors": ["#1b1b1b"], "pattern": "solid", "formality": 4, "seasons": ["spring", "summer", "autumn", "winter"], "warmth": 2},
+  {"id": "b3", "name": "Beige chinos", "image": "images/b3.png", "category": "bottom", "colors": ["#d6c4a3"], "pattern": "solid", "formality": 3, "seasons": ["spring", "summer", "autumn"], "warmth": 2},
+  {"id": "b4", "name": "Plaid skirt", "image": "images/b4.png", "category": "bottom", "colors": ["#c9a227", "#1b1b1b"], "pattern": "plaid", "formality": 3, "seasons": ["autumn", "winter"], "warmth": 2},
+  {"id": "b5", "name": "Grey joggers", "image": "images/b5.png", "category": "bottom", "colors": ["#9a9da1"], "pattern": "solid", "formality": 1, "seasons": ["spring", "autumn", "winter"], "warmth": 3},
+
+  {"id": "d1", "name": "Green midi dress", "image": "images/d1.png", "category": "dress", "colors": ["#2e6b4f"], "pattern": "solid", "formality": 4, "seasons": ["spring", "summer", "autumn"], "warmth": 2},
+
+  {"id": "s1", "name": "White trainers", "image": "images/s1.png", "category": "shoes", "colors": ["#f4f4f2"], "pattern": "solid", "formality": 2, "seasons": ["spring", "summer", "autumn", "winter"], "warmth": 2},
+  {"id": "s2", "name": "Brown leather boots", "image": "images/s2.png", "category": "shoes", "colors": ["#6b4226"], "pattern": "solid", "formality": 3, "seasons": ["autumn", "winter"], "warmth": 4},
+  {"id": "s3", "name": "Black loafers", "image": "images/s3.png", "category": "shoes", "colors": ["#1b1b1b"], "pattern": "solid", "formality": 4, "seasons": ["spring", "summer", "autumn", "winter"], "warmth": 2},
+  {"id": "s4", "name": "Sandals", "image": "images/s4.png", "category": "shoes", "colors": ["#c8a27a"], "pattern": "solid", "formality": 1, "seasons": ["summer"], "warmth": 1},
+
+  {"id": "o1", "name": "Camel coat", "image": "images/o1.png", "category": "outerwear", "colors": ["#b88a5a"], "pattern": "solid", "formality": 4, "seasons": ["autumn", "winter"], "warmth": 5},
+  {"id": "o2", "name": "Denim jacket", "image": "images/o2.png", "category": "outerwear", "colors": ["#5b7fae"], "pattern": "solid", "formality": 2, "seasons": ["spring", "autumn"], "warmth": 3}
+]
