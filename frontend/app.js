@@ -23,14 +23,46 @@ const SLOTS = {
 
 let items = [];         // every clothing item, as returned by GET /api/items
 let mode = "separates"; // key into SLOTS
-const index = {};       // category -> current position in the carousel (missing = 0)
+const index = {};       // category -> selected position; -1 means the user hasn't chosen an item
 let tagMeta = {};       // item id -> where its tags came from, from GET /api/tag-meta (optional)
+let scoreRequest = 0;
+let retroAudioContext;
 
 // Shorthand: $("verdict") instead of document.getElementById("verdict")
 const $ = (id) => document.getElementById(id);
 
 // Item names can come from the vision model, so escape them before putting them in HTML
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+
+$("play-now").addEventListener("click", () => {
+  clearInterval(loadingProgressTimer);
+  $("try-on-loading").hidden = true;
+  document.querySelector(".monitor").hidden = false;
+  document.querySelector("#carousels button:not(:disabled)")?.focus({ preventScroll: true });
+  document.querySelector(".desktop").scrollIntoView({ behavior: "smooth", block: "start" });
+});
+
+const LOADING_BLOCK_COUNT = 24;
+const LOADING_BATCH_SIZE = 3;
+const LOADING_BATCH_INTERVAL_MS = 250;
+const loadingBlocks = $("loading-blocks");
+const loadingBar = document.querySelector(".loading-bar");
+for (let i = 0; i < LOADING_BLOCK_COUNT; i += 1) {
+  const block = document.createElement("span");
+  block.className = "loading-block";
+  loadingBlocks.appendChild(block);
+}
+
+let loadedBlockCount = 0;
+const loadingProgressTimer = window.setInterval(() => {
+  const nextBlockCount = Math.min(LOADING_BLOCK_COUNT, loadedBlockCount + LOADING_BATCH_SIZE);
+  for (let i = loadedBlockCount; i < nextBlockCount; i += 1) {
+    loadingBlocks.children[i].classList.add("filled");
+  }
+  loadedBlockCount = nextBlockCount;
+  loadingBar.setAttribute("aria-valuenow", String(loadedBlockCount));
+  if (loadedBlockCount === LOADING_BLOCK_COUNT) clearInterval(loadingProgressTimer);
+}, LOADING_BATCH_INTERVAL_MS);
 
 // Tag chip text, e.g. "pollinations · 0.82" or "placeholder · 0.00  review"
 function chipFor(meta) {
@@ -55,10 +87,15 @@ function ofCategory(cat) {
   return items.filter((it) => it.category === cat);
 }
 
+function selectedItem(cat) {
+  const position = index[cat] ?? -1;
+  return position < 0 ? undefined : ofCategory(cat)[position];
+}
+
 // The items currently showing in the carousels, in slot order.
-// Empty categories are dropped, so this can be shorter than the slot list.
+// Categories without a user selection are omitted.
 function currentOutfit() {
-  return SLOTS[mode].map((cat) => ofCategory(cat)[index[cat] || 0]).filter(Boolean);
+  return SLOTS[mode].map(selectedItem).filter(Boolean);
 }
 
 // Rebuild the middle column: one white frame + VCR buttons per slot.
@@ -68,25 +105,24 @@ function renderCarousels() {
   box.innerHTML = "";
   for (const cat of SLOTS[mode]) {
     const list = ofCategory(cat);
-    const item = list[index[cat] || 0];
+    const item = selectedItem(cat);
     const row = document.createElement("div");
     row.className = `carousel slot-${cat}`;
     row.innerHTML = `
       <figure>
         <span class="label">${cat}</span>
         ${item ? `<img src="/${item.image}" alt="${esc(item.name)}"><figcaption>${esc(item.name)}</figcaption>`
-               : "<figcaption>No items yet</figcaption>"}
+               : `<figcaption>${list.length ? "Choose an item" : "No items yet"}</figcaption>`}
         ${item && tagMeta[item.id] ? `<span class="tagchip">${esc(chipFor(tagMeta[item.id]))}</span>` : ""}
       </figure>
       <div class="vcr">
-        <button aria-label="previous ${cat}">◀◀</button>
-        <button aria-label="random ${cat}">▶</button>
-        <button aria-label="next ${cat}">▶▶</button>
+        <button aria-label="previous ${cat}" ${list.length ? "" : "disabled"}>◀◀</button>
+        <button aria-label="random ${cat}" ${list.length ? "" : "disabled"}>▶</button>
+        <button aria-label="next ${cat}" ${list.length ? "" : "disabled"}>▶▶</button>
       </div>`;
     const [prev, random, next] = row.querySelectorAll("button");
     prev.onclick = () => step(cat, -1);
-    // Random: jump forward 1..n-1 places, so we always land on a *different* item
-    random.onclick = () => step(cat, 1 + Math.floor(Math.random() * Math.max(list.length - 1, 1)));
+    random.onclick = () => chooseRandom(cat);
     next.onclick = () => step(cat, 1);
     box.appendChild(row);
   }
@@ -96,7 +132,26 @@ function renderCarousels() {
 function step(cat, delta) {
   const n = ofCategory(cat).length;
   if (!n) return;
-  index[cat] = ((index[cat] || 0) + delta + n) % n;
+  const current = index[cat] ?? -1;
+  index[cat] = current < 0 ? (delta < 0 ? n - 1 : 0) : (current + delta + n) % n;
+  prepareRetroAudio();
+  refresh();
+}
+
+function chooseRandom(cat) {
+  const count = ofCategory(cat).length;
+  if (!count) return;
+  const current = index[cat] ?? -1;
+  if (count === 1) {
+    index[cat] = 0;
+  } else {
+    let next;
+    do {
+      next = Math.floor(Math.random() * count);
+    } while (next === current);
+    index[cat] = next;
+  }
+  prepareRetroAudio();
   refresh();
 }
 
@@ -132,7 +187,7 @@ function renderWardrobe() {
         await api(`/api/items/${encodeURIComponent(item.id)}`, { method: "DELETE" });
         const selected = Object.fromEntries(
           [...new Set(items.map((it) => it.category))]
-            .map((category) => [category, ofCategory(category)[index[category] || 0]?.id]),
+            .map((category) => [category, selectedItem(category)?.id]),
         );
         items = items.filter((it) => it.id !== item.id);
         delete tagMeta[item.id];
@@ -141,7 +196,9 @@ function renderWardrobe() {
           const selectedIndex = categoryItems.findIndex((it) => it.id === selectedId);
           index[category] = selectedIndex >= 0
             ? selectedIndex
-            : Math.min(index[category] || 0, Math.max(categoryItems.length - 1, 0));
+            : selectedId
+              ? Math.min(index[category] ?? 0, Math.max(categoryItems.length - 1, 0))
+              : -1;
         }
         $("wardrobe-msg").textContent = `"${item.name}" deleted.`;
         renderWardrobe();
@@ -165,14 +222,67 @@ function flashStamp(text, kind) {
   stamp.classList.add("show"); // adding "show" starts the blink animation
 }
 
+function flashReaction(liked) {
+  const stamp = $("stamp");
+  const icon = liked
+    ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 3h6v2h4V3h6v2h2v7h-2v3h-2v2h-2v2h-2v2h-2v-2h-2v-2H8v-2H6v-3H4z"/></svg>'
+    : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3h4v12H3zM9 3h9l3 3v7l-2 3h-3l-3 5-3-1v-5H7V5h2z"/></svg>';
+  const label = liked ? "LOVE IT!" : "UGH, AS IF!";
+  stamp.innerHTML = `<span class="reaction-icon">${icon}</span><span class="reaction-label">${label}</span>`;
+  stamp.className = `stamp reaction ${liked ? "love" : "dislike"}`;
+  void stamp.offsetWidth;
+  stamp.classList.add("show");
+}
+
+function prepareRetroAudio() {
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) return null;
+  retroAudioContext ||= new AudioContextClass();
+  if (retroAudioContext.state === "suspended") retroAudioContext.resume();
+  return retroAudioContext;
+}
+
+function playRetroSound(kind) {
+  const ctx = prepareRetroAudio();
+  if (!ctx) return;
+
+  const patterns = {
+    match: { notes: [[659.25, 0], [783.99, 0.09], [987.77, 0.18]], wave: "sine", duration: 0.32 },
+    mismatch: { notes: [[120, 0], [126, 0]], wave: "square", duration: 0.42, volume: 0.11 },
+    love: { notes: [[880, 0], [1174.66, 0.09], [1567.98, 0.18]], wave: "triangle", duration: 0.34 },
+    dislike: { notes: [[392, 0], [293.66, 0.12], [196, 0.24]], wave: "square", duration: 0.16, volume: 0.09 },
+  };
+  const pattern = patterns[kind];
+  if (!pattern) return;
+
+  const start = ctx.currentTime;
+  for (const [frequency, offset] of pattern.notes) {
+    const oscillator = ctx.createOscillator();
+    const gain = ctx.createGain();
+    const noteStart = start + offset;
+    oscillator.type = pattern.wave;
+    oscillator.frequency.setValueAtTime(frequency, noteStart);
+    oscillator.connect(gain);
+    gain.connect(ctx.destination);
+    gain.gain.setValueAtTime(0.0001, noteStart);
+    gain.gain.exponentialRampToValueAtTime(pattern.volume ?? 0.12, noteStart + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, noteStart + pattern.duration);
+    oscillator.start(noteStart);
+    oscillator.stop(noteStart + pattern.duration + 0.01);
+  }
+}
+
 // Ask the API to score whatever is on screen, then show the result.
-async function scoreCurrent() {
+async function scoreCurrent(showVerdict = true) {
+  const request = ++scoreRequest;
   const outfit = currentOutfit();
   renderFlatlay(outfit);
   // A slot is empty (e.g. no shoes uploaded yet), so there's nothing to score
   if (outfit.length < SLOTS[mode].length) {
-    $("verdict").textContent = "Add more clothes";
+    $("verdict").textContent = outfit.length ? "Choose the rest of your outfit" : "Pick an outfit";
     $("verdict").className = "verdict";
+    $("score").textContent = "";
+    $("reasons").innerHTML = "";
     return;
   }
   // POST /api/score -> { verdict: "MATCH" | "MISMATCH", score: 0..1, reasons: [...] }
@@ -180,9 +290,13 @@ async function scoreCurrent() {
     method: "POST",
     body: JSON.stringify({ item_ids: outfit.map((it) => it.id) }),
   });
+  if (request !== scoreRequest) return;
   $("verdict").textContent = result.verdict === "MATCH" ? "MATCH!" : "MISMATCH";
   $("verdict").className = "verdict " + result.verdict.toLowerCase(); // colours it green/red
-  flashStamp($("verdict").textContent, result.verdict.toLowerCase());
+  if (showVerdict) {
+    flashStamp($("verdict").textContent, result.verdict.toLowerCase());
+    playRetroSound(result.verdict.toLowerCase());
+  }
   $("score").textContent = `Score ${(result.score * 100).toFixed(0)} / 100`;
   $("reasons").innerHTML = result.reasons.map((r) => `<li>${esc(r)}</li>`).join("");
 }
@@ -209,16 +323,33 @@ function showOutfit(itemIds) {
 // LOVE IT / AS IF! — save a thumbs up/down. The backend retrains the taste model
 // each time, and once it has enough ratings the model starts affecting scores.
 async function sendFeedback(liked) {
-  const ids = currentOutfit().map((it) => it.id);
-  const res = await api("/api/feedback", { method: "POST", body: JSON.stringify({ item_ids: ids, liked }) });
-  $("upload-msg").textContent = res.taste_model_trained
-    ? "Thanks! Your taste model has been updated."
-    : "Thanks! A few more ratings and suggestions will start learning your taste.";
-  scoreCurrent();
+  const outfit = currentOutfit();
+  if (outfit.length !== SLOTS[mode].length) {
+    $("upload-msg").textContent = "Choose a complete outfit before rating it.";
+    return;
+  }
+  scoreRequest += 1;
+  flashReaction(liked);
+  playRetroSound(liked ? "love" : "dislike");
+  const ids = outfit.map((it) => it.id);
+  try {
+    const res = await api("/api/feedback", { method: "POST", body: JSON.stringify({ item_ids: ids, liked }) });
+    $("upload-msg").textContent = res.taste_model_trained
+      ? "Thanks! Your taste model has been updated."
+      : "Thanks! A few more ratings and suggestions will start learning your taste.";
+    scoreCurrent(false).catch(console.error);
+  } catch (err) {
+    $("upload-msg").textContent = `Couldn't save feedback: ${err.message}`;
+  }
 }
 
 // Runs once when the page loads: fetch data and wire up every button.
 async function init() {
+  $("open-try-on").addEventListener("click", (event) => {
+    event.preventDefault();
+    window.location.assign("/try-on.html");
+  });
+
   items = await api("/api/items");
   refresh();
 
@@ -241,6 +372,7 @@ async function init() {
   // Menu bar: SEPARATES / DRESSES. Each button's data-mode is a key in SLOTS.
   document.querySelectorAll(".mode button").forEach((btn) => {
     btn.onclick = () => {
+      prepareRetroAudio();
       mode = btn.dataset.mode;
       document.querySelectorAll(".mode button").forEach((b) => b.classList.toggle("active", b === btn));
       refresh();
@@ -249,6 +381,7 @@ async function init() {
 
   // DRESS ME — ask the backend for the best outfits for today's weather and show the top one
   $("suggest").onclick = async () => {
+    prepareRetroAudio();
     const [best] = await api("/api/suggest?top_n=5");
     if (best) showOutfit(best.item_ids);
     else $("verdict").textContent = "Nothing suits today's weather";
@@ -261,6 +394,7 @@ async function init() {
   // The tag chip has its own element (#tagchip) so feedback messages don't overwrite it.
   $("upload").onsubmit = async (e) => {
     e.preventDefault(); // stop the browser doing a normal page-reloading form submit
+    prepareRetroAudio();
     $("upload-msg").textContent = "Processing photo…";
     $("tagchip").textContent = "";
     try {

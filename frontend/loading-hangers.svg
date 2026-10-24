@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 400" fill="none">
+  <defs>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="2.5" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <path id="hanger" d="M100 23c0-16-22-16-22 0 0 10 10 15 22 20L19 99c-8 5-5 14 5 14h152c10 0 13-9 5-14l-81-56"
+          stroke="#90a9ff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)"/>
+  </defs>
+  <use href="#hanger" transform="translate(0 2) rotate(-28 100 68)" opacity=".85"/>
+  <use href="#hanger" transform="translate(210 18) rotate(21 100 68)" opacity=".85"/>
+  <use href="#hanger" transform="translate(0 137) rotate(13 100 68)" opacity=".85"/>
+  <use href="#hanger" transform="translate(210 145) rotate(-34 100 68)" opacity=".85"/>
+  <use href="#hanger" transform="translate(0 272) rotate(-18 100 68)" opacity=".85"/>
+  <use href="#hanger" transform="translate(210 278) rotate(29 100 68)" opacity=".85"/>
+</svg>

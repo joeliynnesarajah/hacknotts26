@@ -15,6 +15,7 @@ uvicorn backend.main:app --reload
 
 - App: http://localhost:8000
 - Try-on: http://localhost:8000/try-on.html
+- Each main-page load starts with an arcade-style CRT welcome screen, static repeating hangers, a block-by-block progress bar, and a **Play now** button. The wardrobe starts with no clothes selected and only scores a complete outfit. The top-bar Try-On link opens the try-on page.
 - API docs (try every endpoint): http://localhost:8000/docs
 - Tests: `pytest`
 

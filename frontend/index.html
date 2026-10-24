@@ -15,12 +15,15 @@
        Anything with an id is filled in or wired up by app.js; the look is all in style.css. -->
 
   <!-- Beige CRT casing > leopard-print screen -->
-  <div class="monitor">
+  <div class="monitor" hidden>
     <div class="screen">
       <!-- Grey bar along the top; #weather is filled from GET /api/weather -->
       <header class="titlebar">
         <span>WARDROBE</span>
         <span id="weather" class="weather">Loading weather…</span>
+        <nav class="top-nav" aria-label="Main navigation">
+          <a id="open-try-on" href="/try-on.html">Try on</a>
+        </nav>
       </header>
 
       <!-- Three columns: STATUS | clothes | flat-lay + upload -->
@@ -87,6 +90,24 @@
         <button data-mode="separates" class="active">Separates</button>
         <button data-mode="dress">Dresses</button>
       </nav>
+    </div>
+  </div>
+
+  <div id="try-on-loading" class="try-on-loading" role="status" aria-live="polite">
+    <div class="loading-crt">
+      <div class="loading-crt-screen">
+        <div class="loading-game-window">
+          <div class="loading-game-title">WARDROBE ARCADE</div>
+          <div class="loading-game-body">
+            <p class="loading-game-kicker">WELCOME TO</p>
+            <h1>WARDROBE</h1>
+            <div class="loading-bar" role="progressbar" aria-label="Loading wardrobe" aria-valuemin="0" aria-valuemax="24" aria-valuenow="0">
+              <div id="loading-blocks" class="loading-blocks"></div>
+            </div>
+            <button id="play-now" class="big blue" type="button">Play now</button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
