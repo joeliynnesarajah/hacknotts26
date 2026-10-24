@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Wardrobe — Try-On</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&display=swap">
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/try-on.css">
+</head>
+<body>
+  <div class="monitor">
+    <div class="screen try-on-screen">
+      <header class="titlebar">
+        <a href="/" class="try-on-back">WARDROBE</a>
+        <span>TRY-ON</span>
+        <div class="avatar-controls">
+          <button id="reset-avatar" type="button">Cher</button>
+          <label class="try-on-upload">
+            + Upload Avatar
+            <input id="avatar-file" type="file" accept="image/*">
+          </label>
+        </div>
+      </header>
+
+      <main class="try-on-layout">
+        <section class="window try-on-doll-panel">
+          <div class="win-title">THE OUTFIT</div>
+          <div class="win-body">
+            <div id="mannequin" role="img" aria-label="Outfit try-on mannequin">
+              <img id="layer-torso" class="layer torso" alt="">
+              <img id="layer-legs" class="layer legs" alt="">
+              <img id="layer-feet" class="layer feet" alt="">
+            </div>
+            <p id="try-on-status" class="try-on-status" role="status">Loading wardrobe…</p>
+          </div>
+        </section>
+
+        <aside class="try-on-sidebar">
+          <section class="window">
+            <div class="win-title">CHOOSE YOUR LOOK</div>
+            <div class="win-body">
+              <div class="try-on-modes" role="group" aria-label="Outfit type">
+                <button type="button" data-mode="separates" class="active">Separates</button>
+                <button type="button" data-mode="dress">Dress</button>
+              </div>
+              <div id="try-on-slots"></div>
+            </div>
+          </section>
+
+          <section class="window">
+            <div class="win-title">ADD CLOTHES</div>
+            <div class="win-body">
+              <form id="clothing-upload" class="try-on-clothing-upload">
+                <input type="text" name="name" placeholder="Name, e.g. Blue jumper" required>
+                <input type="file" name="photo" accept="image/*" required>
+                <button id="clothing-upload-button" type="submit">Upload</button>
+              </form>
+              <p id="clothing-upload-msg" class="msg" role="status"></p>
+              <p id="clothing-tagchip" class="tagchip"></p>
+            </div>
+          </section>
+
+          <section class="window">
+            <div class="win-title">FLAT-LAY</div>
+            <div class="win-body">
+              <div id="try-on-flatlay" class="flatlay"></div>
+              <div id="try-on-verdict" class="try-on-verdict">Pick an outfit</div>
+              <p id="try-on-score" class="score"></p>
+              <ul id="try-on-reasons" class="reasons"></ul>
+            </div>
+          </section>
+        </aside>
+      </main>
+
+      <div class="controls try-on-controls">
+        <button id="try-on-like" class="big">Love it</button>
+        <button id="try-on-dislike" class="big">As if!</button>
+      </div>
+      <div id="try-on-stamp" class="try-on-stamp" aria-hidden="true"></div>
+    </div>
+  </div>
+  <script src="/static/try-on.js"></script>
+</body>
+</html>
