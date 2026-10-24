@@ -198,6 +198,41 @@ def worn(outfit: Outfit):
     return {"saved": True}
 
 
+# ---- avatar for the paper-doll try-on ----
+AVATAR_PATH = ROOT / "data" / "images" / "avatar.png"
+
+
+@app.post("/api/avatar")
+async def upload_avatar(file: UploadFile = File(...)):
+    """Upload a full-body photo; rembg strips the background and saves avatar.png."""
+    from input_pipeline.background import remove_background
+    try:
+        img = Image.open(io.BytesIO(await file.read()))
+        img.load()
+    except Exception:
+        raise HTTPException(400, "That file isn't an image")
+    try:
+        cutout = await run_in_threadpool(remove_background, img)
+    except Exception as exc:
+        logging.getLogger(__name__).exception("avatar background removal failed")
+        raise HTTPException(400, f"Couldn't process that photo ({type(exc).__name__})")
+    AVATAR_PATH.parent.mkdir(parents=True, exist_ok=True)
+    cutout.save(AVATAR_PATH)
+    return {"url": "/images/avatar.png"}
+
+
+@app.get("/api/avatar")
+def get_avatar():
+    return {"url": "/images/avatar.png"} if AVATAR_PATH.exists() else {"url": None}
+
+
+@app.delete("/api/avatar")
+def delete_avatar():
+    if AVATAR_PATH.exists():
+        AVATAR_PATH.unlink()
+    return {"url": None}
+
+
 # ---- static files: item images + Person 3's frontend ----
 app.mount("/images", StaticFiles(directory=ROOT / "data" / "images"), name="images")
 app.mount("/static", StaticFiles(directory=ROOT / "frontend"), name="static")
@@ -206,3 +241,8 @@ app.mount("/static", StaticFiles(directory=ROOT / "frontend"), name="static")
 @app.get("/")
 def index():
     return FileResponse(ROOT / "frontend" / "index.html")
+
+
+@app.get("/try-on")
+def try_on():
+    return FileResponse(ROOT / "frontend" / "try-on.html")

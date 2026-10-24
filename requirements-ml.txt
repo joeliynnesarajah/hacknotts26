@@ -1,4 +1,5 @@
-# Optional, large downloads (Person 1). The app works without these, using simple fallbacks.
-rembg[cpu]       # background removal
+# Optional, large downloads (Person 1) for offline CLIP tagging.
+# rembg[cpu] is now in requirements.txt.
 transformers     # CLIP tagging
 torch
+

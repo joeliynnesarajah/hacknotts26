@@ -99,9 +99,9 @@ def _encode(img: Image.Image) -> str:
         bg.paste(img, mask=img.getchannel("A"))
         img = bg
     img = img.convert("RGB")
-    img.thumbnail((768, 768))
+    img.thumbnail((512, 512))
     buf = io.BytesIO()
-    img.save(buf, format="JPEG", quality=85)
+    img.save(buf, format="JPEG", quality=75)
     return base64.b64encode(buf.getvalue()).decode("ascii")
 
 
@@ -229,7 +229,7 @@ def tag_item_pollinations(img: Image.Image) -> Optional[dict]:
                 "model": model,
                 "messages": [{"role": "user", "content": [
                     {"type": "text", "text": PROMPT},
-                    {"type": "image_url", "image_url": {"url": data_uri, "detail": "high"}},
+                    {"type": "image_url", "image_url": {"url": data_uri, "detail": "low"}},
                 ]}],
                 "temperature": temperature,
                 "max_tokens": 512,

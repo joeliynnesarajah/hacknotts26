@@ -16,7 +16,7 @@ uvicorn backend.main:app --reload
 - API docs (try every endpoint): http://localhost:8000/docs
 - Tests: `pytest`
 
-Optional, for real background removal and offline CLIP tagging (large download):
+Optional, for offline CLIP tagging (large download):
 `pip install -r requirements-ml.txt`
 
 ## Tagging uploads with a vision model

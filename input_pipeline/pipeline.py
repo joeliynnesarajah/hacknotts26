@@ -7,6 +7,7 @@ Try it on its own:
     python -m input_pipeline.pipeline path/to/photo.jpg
 """
 import sys
+import concurrent.futures
 import uuid
 from pathlib import Path
 from typing import Optional
@@ -33,12 +34,17 @@ def process_photo_with_meta(photo: Image.Image, name: Optional[str] = None,
     left it blank (or as the form default), and is always kept as suggested_name.
     Pass item_id to get a stable id (the pretag script does); otherwise it's random.
     """
-    cutout = crop_to_content(remove_background(photo))
+    photo.load()
+    # Run background removal (CPU) and vision tagging (network I/O) concurrently
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+        bg_future = pool.submit(lambda: crop_to_content(remove_background(photo)))
+        tag_future = pool.submit(lambda: tag_item(photo))
+        cutout = bg_future.result()
+        tags = tag_future.result()
+
     item_id = item_id or uuid.uuid4().hex[:8]
     IMAGES_DIR.mkdir(parents=True, exist_ok=True)
     cutout.save(IMAGES_DIR / f"{item_id}.png")
-
-    tags = tag_item(cutout)
     typed = (name or "").strip()
     item = Item(
         id=item_id,

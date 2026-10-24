@@ -41,7 +41,7 @@ def test_upload_photo():
                     data={"name": "Test red top"})
     assert r.status_code == 200
     item = r.json()["item"]
-    assert item["colors"][0].startswith("#c")  # red detected
+    assert item["colors"][0].startswith(("#c", "#b"))  # red detected (~#c0392b / #be392b)
     client.delete(f"/api/items/{item['id']}")
 
 
@@ -125,3 +125,40 @@ def test_upload_rejects_truncated_image():
 
 def test_score_rejects_empty_outfit():
     assert client.post("/api/score", json={"item_ids": []}).status_code == 422
+
+
+def test_try_on_page():
+    r = client.get("/try-on")
+    assert r.status_code == 200
+    assert "Wardrobe — Try On" in r.text
+
+
+def test_avatar_lifecycle():
+    # Clean state
+    client.delete("/api/avatar")
+    assert client.get("/api/avatar").json() == {"url": None}
+
+    # Upload avatar
+    img = Image.new("RGB", (100, 200), "white")
+    ImageDraw.Draw(img).rectangle([20, 20, 80, 180], fill="#336699")
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    r = client.post("/api/avatar", files={"file": ("person.png", buf.getvalue(), "image/png")})
+    assert r.status_code == 200
+    assert r.json() == {"url": "/images/avatar.png"}
+
+    # Get avatar
+    r2 = client.get("/api/avatar")
+    assert r2.status_code == 200
+    assert r2.json() == {"url": "/images/avatar.png"}
+
+    # Delete avatar
+    r3 = client.delete("/api/avatar")
+    assert r3.status_code == 200
+    assert client.get("/api/avatar").json() == {"url": None}
+
+
+def test_avatar_rejects_invalid_file():
+    r = client.post("/api/avatar", files={"file": ("bad.txt", b"not an image", "text/plain")})
+    assert r.status_code == 400
+

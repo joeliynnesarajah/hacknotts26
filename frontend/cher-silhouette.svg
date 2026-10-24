@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 420" width="180" height="420">
+  <!-- head / hair bob -->
+  <ellipse cx="90" cy="42" rx="22" ry="26" fill="#3a2a1a"/>
+  <circle cx="90" cy="48" r="20" fill="#fce7d3"/>
+  <path d="M68 42 Q70 20 90 18 Q110 20 112 42 Q112 34 90 30 Q68 34 68 42 Z" fill="#3a2a1a"/>
+
+  <!-- neck -->
+  <rect x="82" y="68" width="16" height="14" rx="4" fill="#fce7d3"/>
+
+  <!-- torso -->
+  <path d="M60 82 Q58 130 62 160 L70 215 L110 215 L118 160 Q122 130 120 82 Z" fill="#f0d4bd" opacity="0.5"/>
+
+  <!-- arms -->
+  <path d="M60 85 Q42 100 38 140 Q36 170 48 175 Q55 170 55 140 Q56 110 60 100 Z" fill="#fce7d3" opacity="0.45"/>
+  <path d="M120 85 Q138 100 142 140 Q144 170 132 175 Q125 170 125 140 Q124 110 120 100 Z" fill="#fce7d3" opacity="0.45"/>
+
+  <!-- legs -->
+  <path d="M70 215 L66 330 Q66 370 74 380 L90 380 L90 215 Z" fill="#fce7d3" opacity="0.4"/>
+  <path d="M110 215 L114 330 Q114 370 106 380 L90 380 L90 215 Z" fill="#fce7d3" opacity="0.4"/>
+
+  <!-- shoes -->
+  <ellipse cx="74" cy="392" rx="20" ry="9" fill="#d4c4b0"/>
+  <ellipse cx="106" cy="392" rx="20" ry="9" fill="#d4c4b0"/>
+
+  <!-- subtle body guide lines -->
+  <line x1="55" y1="82" x2="125" y2="82" stroke="#c0b0a0" stroke-width="0.5" stroke-dasharray="4 3" opacity="0.3"/>
+  <line x1="65" y1="215" x2="115" y2="215" stroke="#c0b0a0" stroke-width="0.5" stroke-dasharray="4 3" opacity="0.3"/>
+  <line x1="60" y1="370" x2="120" y2="370" stroke="#c0b0a0" stroke-width="0.5" stroke-dasharray="4 3" opacity="0.3"/>
+</svg>

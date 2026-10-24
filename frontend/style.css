@@ -239,8 +239,12 @@ input[type=file] { max-width: 100%; }
 
 /* Grey strip along the bottom. Items are flat until hovered; the active mode is blue. */
 .menubar { display: flex; justify-content: center; gap: 4px; margin: 0 10px 10px; padding: 2px; }
-.menubar button { border-color: transparent; background: transparent; padding: 0 16px; }
-.menubar button:hover { border-color: var(--hi) var(--lo) var(--lo) var(--hi); }
+.menubar button, .menubar a {
+  border: 2px solid transparent; background: transparent; padding: 0 16px;
+  font: inherit; color: var(--ink); text-transform: uppercase; letter-spacing: .08em;
+  text-decoration: none; display: inline-flex; align-items: center;
+}
+.menubar button:hover, .menubar a:hover { border-color: var(--hi) var(--lo) var(--lo) var(--hi); }
 .menubar button.active { background: var(--blue); color: #fff; border-color: var(--lo) var(--hi) var(--hi) var(--lo); }
 
 /* --- Phones: drop the bezel, stack everything --- */
