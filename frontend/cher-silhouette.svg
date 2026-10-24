@@ -1,33 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 420" width="180" height="420">
-  <!-- Default try-on figure. Clothes are layered on top by try-on.js; the boxes they
-       sit in (.layer.torso / .bottom / .dress / .shoes in style.css) are percentages
-       of this 180x420 frame, so keep the body in the same place if you redraw it:
-         shoulders y≈86, waist y≈196, hem of a dress y≈330, ankles y≈386, feet y≈392 -->
-
-  <!-- long blonde hair, behind everything -->
-  <path d="M63 42 Q64 10 90 10 Q116 10 117 42 L122 112 Q106 118 99 100 L81 100 Q74 118 58 112 Z" fill="#e6c35f"/>
-
-  <!-- arms -->
-  <path d="M60 90 Q48 94 46 122 L40 200 Q38 214 46 216 Q53 214 53 202 L61 132 Z" fill="#f1cbae"/>
-  <path d="M120 90 Q132 94 134 122 L140 200 Q142 214 134 216 Q127 214 127 202 L119 132 Z" fill="#f1cbae"/>
-
-  <!-- legs -->
-  <path d="M63 200 L117 200 L113 300 L109 386 L96 386 L92 262 L88 262 L84 386 L71 386 L67 300 Z" fill="#f1cbae"/>
-
-  <!-- neck and head -->
-  <rect x="83" y="64" width="14" height="24" fill="#f1cbae"/>
-  <ellipse cx="90" cy="46" rx="19" ry="23" fill="#f6d5ba"/>
-  <!-- side-parted fringe -->
-  <path d="M71 42 Q76 20 97 21 Q111 25 110 42 Q97 30 79 37 Z" fill="#e6c35f"/>
-  <!-- face -->
-  <ellipse cx="83" cy="47" rx="1.8" ry="2.2" fill="#5a3b2a"/>
-  <ellipse cx="97" cy="47" rx="1.8" ry="2.2" fill="#5a3b2a"/>
-  <path d="M85 58 Q90 61 95 58" stroke="#c2566b" stroke-width="1.8" fill="none" stroke-linecap="round"/>
-
-  <!-- plain grey bodysuit, so the figure looks dressed before clothes go on -->
-  <path d="M61 88 Q90 80 119 88 L121 132 Q117 170 119 204 L61 204 Q63 170 59 132 Z" fill="#e4e4e4" stroke="#b5b5b5" stroke-width="1.5"/>
-
-  <!-- simple flats -->
-  <ellipse cx="77" cy="392" rx="11" ry="6" fill="#cfcfcf"/>
-  <ellipse cx="103" cy="392" rx="11" ry="6" fill="#cfcfcf"/>
+  <circle cx="90" cy="55" r="24" fill="#fce7d3"/>
+  <path d="M66 55 Q90 30 114 55 V90 Q90 95 66 90 Z" fill="#ffe4c4"/>
+  <rect x="81" y="90" width="18" height="16" fill="#fce7d3"/>
+  <path d="M62 106 L50 160 Q52 200 70 215 L110 215 Q128 200 130 160 L118 106 Z" fill="#c8102e"/>
+  <path d="M50 130 Q30 140 35 170 Q40 200 58 185 L58 130 Z" fill="#fce7d3"/>
+  <path d="M130 130 Q150 140 145 170 Q140 200 122 185 L122 130 Z" fill="#fce7d3"/>
+  <path d="M66 215 Q90 225 114 215 L122 240 Q122 380 90 380 Q58 380 58 240 Z" fill="#fce7d3"/>
+  <ellipse cx="78" cy="395" rx="18" ry="10" fill="#c8102e"/>
+  <ellipse cx="102" cy="395" rx="18" ry="10" fill="#c8102e"/>
 </svg>

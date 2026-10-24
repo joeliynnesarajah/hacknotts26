@@ -1,250 +1,324 @@
-// PERSON 3 — Paper-doll try-on logic. Same API as the closet page (app.js).
-//
-// How it works:
-//   1. Load every item. Each slot (top / bottom / shoes, or dress / shoes) has a picker
-//      with ◀◀ ▶ ▶▶, and `index` remembers which item each slot shows.
-//   2. renderMannequin() layers the chosen cutouts over the figure. The cutouts are square
-//      PNGs with lots of transparent padding (shoes fill only a thin strip), so trimmed()
-//      crops each one to its visible pixels first; CSS then fits it into that body part's box.
-//   3. Every change re-scores the outfit (POST /api/score), flashes MATCH!/MISMATCH and
-//      plays a sound (sounds.js).
-//   4. The figure is the Cher silhouette, or your own photo from POST /api/avatar.
-
-const SLOTS = {
-  separates: ["top", "bottom", "shoes"],
-  dress: ["dress", "shoes"],
-};
-// Which body box each category is drawn in (see .layer.* in style.css)
-const LAYER = { top: "torso", bottom: "bottom", dress: "dress", shoes: "shoes" };
-const SILHOUETTE = "/static/cher-silhouette.svg";
+const $ = (id) => document.getElementById(id);
+const esc = (value) => String(value).replace(/[&<>"']/g, (char) => `&#${char.charCodeAt(0)};`);
 
 let items = [];
 let mode = "separates";
-const index = {};
-let renderToken = 0; // so a slow image from an old click can't overwrite a newer outfit
-
-const $ = (id) => document.getElementById(id);
-const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+let avatarAudioContext;
+let scoreRequest = 0;
+const positions = { top: 0, bottom: 0, dress: 0, shoes: 0 };
+const categories = {
+  separates: ["top", "bottom", "shoes"],
+  dress: ["dress", "shoes"],
+};
 
 async function api(path, options = {}) {
-  const res = await fetch(path, {
+  const response = await fetch(path, {
     headers: options.body instanceof FormData ? {} : { "Content-Type": "application/json" },
     ...options,
   });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
+  if (!response.ok) throw new Error(await response.text());
+  return response.json();
 }
 
-const ofCategory = (cat) => items.filter((it) => it.category === cat);
-const currentOutfit = () => SLOTS[mode].map((cat) => ofCategory(cat)[index[cat] || 0]).filter(Boolean);
+function itemsFor(category) {
+  return items.filter((item) => item.category === category);
+}
 
-// ---- trimming: crop a cutout to its non-transparent pixels (cached per image) ----
-const trimCache = {};
-function trimmed(src) {
-  if (!trimCache[src]) {
-    trimCache[src] = new Promise((resolve) => {
-      const img = new Image();
-      img.onload = () => {
-        const w = img.naturalWidth, h = img.naturalHeight;
-        const canvas = document.createElement("canvas");
-        canvas.width = w;
-        canvas.height = h;
-        const g = canvas.getContext("2d");
-        g.drawImage(img, 0, 0);
-        let data;
-        try {
-          data = g.getImageData(0, 0, w, h).data;
-        } catch {
-          return resolve(src); // canvas blocked (shouldn't happen, same origin): use as-is
-        }
-        let x0 = w, y0 = h, x1 = -1, y1 = -1;
-        for (let y = 0; y < h; y++) {
-          for (let x = 0; x < w; x++) {
-            if (data[(y * w + x) * 4 + 3] > 16) {
-              if (x < x0) x0 = x;
-              if (x > x1) x1 = x;
-              if (y < y0) y0 = y;
-              if (y > y1) y1 = y;
-            }
-          }
-        }
-        if (x1 < 0) return resolve(src); // fully transparent: nothing to trim
-        const out = document.createElement("canvas");
-        out.width = x1 - x0 + 1;
-        out.height = y1 - y0 + 1;
-        out.getContext("2d").drawImage(canvas, x0, y0, out.width, out.height, 0, 0, out.width, out.height);
-        resolve(out.toDataURL("image/png"));
-      };
-      img.onerror = () => resolve(src);
-      img.src = src;
-    });
+function currentOutfit() {
+  return categories[mode]
+    .map((category) => itemsFor(category)[positions[category] || 0])
+    .filter(Boolean);
+}
+
+function showItemLayer(layerId, item) {
+  const layer = $(layerId);
+  if (!item) {
+    layer.removeAttribute("src");
+    layer.hidden = true;
+    return;
   }
-  return trimCache[src];
+  layer.src = `/${item.image}`;
+  layer.hidden = false;
 }
 
-// ---- drawing ----
-async function renderMannequin() {
-  const token = ++renderToken;
+function renderLayers() {
   const outfit = currentOutfit();
-  const srcs = await Promise.all(outfit.map((it) => trimmed(`/${it.image}`)));
-  if (token !== renderToken) return; // the user has clicked again since
-  const box = $("mannequin");
-  box.querySelectorAll(".layer").forEach((el) => el.remove());
-  outfit.forEach((it, i) => {
-    const img = document.createElement("img");
-    img.className = `layer ${LAYER[it.category]}`;
-    img.src = srcs[i];
-    img.alt = it.name;
-    box.appendChild(img);
-  });
+  showItemLayer("layer-torso", mode === "separates" ? outfit.find((item) => item.category === "top") : null);
+  showItemLayer("layer-legs", outfit.find((item) => item.category === "bottom" || item.category === "dress"));
+  showItemLayer("layer-feet", outfit.find((item) => item.category === "shoes"));
+  $("try-on-flatlay").innerHTML = outfit.map((item) =>
+    `<img class="try-on-flat-item" src="/${esc(item.image)}" alt="${esc(item.name)}">`).join("");
 }
 
-function renderPickers() {
-  const box = $("pickers");
-  box.innerHTML = "";
-  for (const cat of SLOTS[mode]) {
-    const list = ofCategory(cat);
-    const item = list[index[cat] || 0];
+function renderSlots() {
+  const slots = $("try-on-slots");
+  slots.innerHTML = "";
+  for (const category of categories[mode]) {
+    const list = itemsFor(category);
+    const item = list[positions[category] || 0];
     const row = document.createElement("div");
-    row.className = "picker";
+    row.className = "try-on-slot";
     row.innerHTML = `
-      <span class="picker-label">${cat}</span>
-      <span class="picker-name">${item ? esc(item.name) : "No items yet"}</span>
-      <div class="vcr">
-        <button aria-label="previous ${cat}">◀◀</button>
-        <button aria-label="random ${cat}">▶</button>
-        <button aria-label="next ${cat}">▶▶</button>
-      </div>`;
-    const [prev, random, next] = row.querySelectorAll("button");
-    prev.onclick = () => step(cat, -1);
-    random.onclick = () => step(cat, 1 + Math.floor(Math.random() * Math.max(list.length - 1, 1)));
-    next.onclick = () => step(cat, 1);
-    box.appendChild(row);
+      <span class="try-on-slot-label">${esc(category)}</span>
+      <span class="try-on-slot-name">${item ? esc(item.name) : "No items yet"}</span>
+      <span class="try-on-slot-controls">
+        <button type="button" aria-label="Previous ${esc(category)}" ${list.length < 2 ? "disabled" : ""}>◀</button>
+        <button type="button" aria-label="Next ${esc(category)}" ${list.length < 2 ? "disabled" : ""}>▶</button>
+      </span>`;
+    const [previous, next] = row.querySelectorAll("button");
+    previous.onclick = () => step(category, -1);
+    next.onclick = () => step(category, 1);
+    slots.appendChild(row);
   }
 }
 
-function step(cat, delta) {
-  const n = ofCategory(cat).length;
-  if (!n) return;
-  index[cat] = ((index[cat] || 0) + delta + n) % n;
-  refresh();
+function playMismatch() {
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) return;
+  avatarAudioContext ||= new AudioContextClass();
+  const ctx = avatarAudioContext;
+  const first = ctx.createOscillator();
+  const second = ctx.createOscillator();
+  const gain = ctx.createGain();
+  first.type = "square";
+  second.type = "square";
+  first.frequency.setValueAtTime(120, ctx.currentTime);
+  second.frequency.setValueAtTime(126, ctx.currentTime);
+  first.connect(gain);
+  second.connect(gain);
+  gain.connect(ctx.destination);
+  gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.15, ctx.currentTime + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+  first.start();
+  second.start();
+  first.stop(ctx.currentTime + 0.5);
+  second.stop(ctx.currentTime + 0.5);
 }
 
-function flashStamp(text, kind) {
-  const stamp = $("stamp");
-  stamp.textContent = text;
-  stamp.className = "stamp " + kind;
-  void stamp.offsetWidth; // restart the animation
+function playMatch() {
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) return;
+  avatarAudioContext ||= new AudioContextClass();
+  const ctx = avatarAudioContext;
+  const notes = [659.25, 783.99, 987.77];
+  const start = ctx.currentTime;
+  for (const [index, frequency] of notes.entries()) {
+    const oscillator = ctx.createOscillator();
+    const modulation = ctx.createOscillator();
+    const modulationGain = ctx.createGain();
+    const gain = ctx.createGain();
+    oscillator.type = "sine";
+    modulation.type = "sine";
+    oscillator.frequency.setValueAtTime(frequency, start);
+    modulation.frequency.setValueAtTime(frequency * 2, start);
+    modulationGain.gain.setValueAtTime(frequency / 8, start);
+    modulation.connect(modulationGain);
+    modulationGain.connect(oscillator.frequency);
+    oscillator.connect(gain);
+    gain.connect(ctx.destination);
+    const noteStart = start + index * 0.09;
+    gain.gain.setValueAtTime(0.0001, noteStart);
+    gain.gain.exponentialRampToValueAtTime(0.12, noteStart + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, noteStart + 0.35);
+    oscillator.start(noteStart);
+    modulation.start(noteStart);
+    oscillator.stop(noteStart + 0.36);
+    modulation.stop(noteStart + 0.36);
+  }
+}
+
+function flashVerdict(verdict) {
+  const stamp = $("try-on-stamp");
+  stamp.textContent = verdict === "MATCH" ? "MATCH!" : "MISMATCH";
+  stamp.className = `try-on-stamp ${verdict.toLowerCase()}`;
+  void stamp.offsetWidth;
   stamp.classList.add("show");
-  Sound.play(kind);
 }
 
-async function scoreCurrent() {
+async function scoreOutfit(announceChange = false) {
+  const request = ++scoreRequest;
   const outfit = currentOutfit();
-  if (outfit.length < SLOTS[mode].length) {
-    $("verdict").textContent = "Add more clothes";
-    $("verdict").className = "verdict";
-    $("score").textContent = "";
-    $("reasons").innerHTML = "";
+  if (!outfit.length) {
+    $("try-on-verdict").textContent = "Add clothes";
+    $("try-on-verdict").className = "try-on-verdict";
+    $("try-on-score").textContent = "";
+    $("try-on-reasons").innerHTML = "";
+    $("try-on-stamp").className = "try-on-stamp";
     return;
   }
   const result = await api("/api/score", {
     method: "POST",
-    body: JSON.stringify({ item_ids: outfit.map((it) => it.id) }),
+    body: JSON.stringify({ item_ids: outfit.map((item) => item.id) }),
   });
-  const kind = result.verdict.toLowerCase();
-  $("verdict").textContent = result.verdict === "MATCH" ? "MATCH!" : "MISMATCH";
-  $("verdict").className = "verdict " + kind;
-  flashStamp($("verdict").textContent, kind);
-  $("score").textContent = `Score ${(result.score * 100).toFixed(0)} / 100`;
-  $("reasons").innerHTML = result.reasons.map((r) => `<li>${esc(r)}</li>`).join("");
-}
-
-function refresh() {
-  renderPickers();
-  renderMannequin().catch(console.error);
-  scoreCurrent().catch(console.error);
-}
-
-function setMode(next) {
-  mode = next;
-  document.querySelectorAll(".mode button").forEach((b) => b.classList.toggle("active", b.dataset.mode === mode));
-}
-
-function showOutfit(itemIds) {
-  const chosen = itemIds.map((id) => items.find((it) => it.id === id)).filter(Boolean);
-  setMode(chosen.some((it) => it.category === "dress") ? "dress" : "separates");
-  for (const it of chosen) {
-    const pos = ofCategory(it.category).findIndex((x) => x.id === it.id);
-    if (pos >= 0) index[it.category] = pos;
+  if (request !== scoreRequest) return;
+  $("try-on-verdict").textContent = result.verdict === "MATCH" ? "MATCH!" : "MISMATCH";
+  $("try-on-verdict").className = `try-on-verdict ${result.verdict.toLowerCase()}`;
+  $("try-on-score").textContent = `Score ${(result.score * 100).toFixed(0)} / 100`;
+  $("try-on-reasons").innerHTML = result.reasons.map((reason) => `<li>${esc(reason)}</li>`).join("");
+  if (announceChange) {
+    flashVerdict(result.verdict);
+    result.verdict === "MATCH" ? playMatch() : playMismatch();
   }
-  refresh();
 }
 
-async function sendFeedback(liked) {
-  const ids = currentOutfit().map((it) => it.id);
-  if (!ids.length) return;
-  const res = await api("/api/feedback", { method: "POST", body: JSON.stringify({ item_ids: ids, liked }) });
-  $("feedback-msg").textContent = res.taste_model_trained
-    ? "Thanks! Your taste model has been updated."
-    : "Thanks! A few more ratings and suggestions will start learning your taste.";
+function refresh(announceChange = false) {
+  renderSlots();
+  renderLayers();
+  scoreOutfit(announceChange).catch((error) => {
+    $("try-on-status").textContent = `Couldn't score outfit: ${error.message}`;
+  });
 }
 
-// ---- avatar ----
-function showAvatar(url) {
-  // Your photo if there is one, otherwise the Cher silhouette; CRT beige shows behind either
-  $("mannequin").style.backgroundImage = `url("${url || SILHOUETTE}")`;
-  $("mannequin").classList.toggle("custom", Boolean(url));
-  $("avatar-reset").hidden = !url;
+function step(category, delta) {
+  const count = itemsFor(category).length;
+  if (count < 1) return;
+  positions[category] = ((positions[category] || 0) + delta + count) % count;
+  $("try-on-status").textContent = "";
+  refresh(true);
+}
+
+function setAvatar(url) {
+  const mannequin = $("mannequin");
+  const fallback = 'url("/static/cher-silhouette.svg")';
+  if (!url) {
+    mannequin.style.backgroundImage = fallback;
+    $("reset-avatar").disabled = true;
+    return;
+  }
+  const image = new Image();
+  image.onload = () => {
+    mannequin.style.backgroundImage = `url("${url}")`;
+    $("reset-avatar").disabled = false;
+  };
+  image.onerror = () => {
+    mannequin.style.backgroundImage = fallback;
+    $("try-on-status").textContent = "Couldn't load your photo; showing Cher instead.";
+  };
+  image.src = url;
+}
+
+async function loadAvatar() {
+  const avatar = await api("/api/avatar");
+  setAvatar(avatar.url);
+}
+
+async function submitFeedback(liked) {
+  const outfit = currentOutfit();
+  if (!outfit.length) {
+    $("try-on-status").textContent = "Choose at least one item first.";
+    return;
+  }
+  try {
+    await api("/api/feedback", {
+      method: "POST",
+      body: JSON.stringify({ item_ids: outfit.map((item) => item.id), liked }),
+    });
+    $("try-on-status").textContent = "Thanks for the feedback!";
+    await scoreOutfit();
+  } catch (error) {
+    $("try-on-status").textContent = `Couldn't save feedback: ${error.message}`;
+  }
+}
+
+function selectCategory(category) {
+  if (category === "dress") {
+    mode = "dress";
+  } else if (["top", "bottom", "shoes"].includes(category)) {
+    mode = "separates";
+  } else {
+    return false;
+  }
+  document.querySelectorAll(".try-on-modes button").forEach((button) =>
+    button.classList.toggle("active", button.dataset.mode === mode));
+  return true;
 }
 
 async function init() {
-  items = await api("/api/items");
-  const wanted = new URLSearchParams(location.search).get("mode"); // e.g. /try-on?mode=dress
-  if (wanted in SLOTS) setMode(wanted);
-  refresh();
+  try {
+    [items] = await Promise.all([api("/api/items"), loadAvatar()]);
+  } catch (error) {
+    $("try-on-status").textContent = `Couldn't load try-on: ${error.message}`;
+    return;
+  }
 
-  api("/api/weather").then((w) => {
-    $("weather").textContent = `${Math.round(w.temperature_c)}°C${w.raining ? ", raining" : ""} · ${w.season}`;
-  }).catch(() => ($("weather").textContent = ""));
-
-  showAvatar(null);
-  api("/api/avatar").then((a) => showAvatar(a.url)).catch(() => {});
-
-  document.querySelectorAll(".mode button").forEach((btn) => {
-    btn.onclick = () => { setMode(btn.dataset.mode); refresh(); };
+  document.querySelectorAll(".try-on-modes button").forEach((button) => {
+    button.onclick = () => {
+      mode = button.dataset.mode;
+      document.querySelectorAll(".try-on-modes button").forEach((modeButton) =>
+        modeButton.classList.toggle("active", modeButton === button));
+      $("try-on-status").textContent = "";
+      refresh(true);
+    };
   });
 
-  $("suggest").onclick = async () => {
-    const [best] = await api("/api/suggest?top_n=5");
-    if (best) showOutfit(best.item_ids);
-    else $("verdict").textContent = "Nothing suits today's weather";
-  };
-  $("like").onclick = () => sendFeedback(true).catch((e) => ($("feedback-msg").textContent = e.message));
-  $("dislike").onclick = () => sendFeedback(false).catch((e) => ($("feedback-msg").textContent = e.message));
-
-  $("avatar-form").onsubmit = async (e) => {
-    e.preventDefault();
-    const button = e.target.querySelector("button");
-    button.disabled = true;
-    $("avatar-msg").textContent = "Cutting you out…";
+  $("avatar-file").onchange = async (event) => {
+    const [file] = event.target.files;
+    if (!file) return;
+    $("try-on-status").textContent = "Removing photo background…";
     try {
-      const res = await api("/api/avatar", { method: "POST", body: new FormData(e.target) });
-      showAvatar(res.url);
-      $("avatar-msg").textContent = "Looking good. Clothes are placed for a standard pose, so the fit is approximate.";
-      e.target.reset();
-    } catch (err) {
-      $("avatar-msg").textContent = "Couldn't use that photo: " + err.message;
+      const form = new FormData();
+      form.append("file", file);
+      const result = await api("/api/avatar", { method: "POST", body: form });
+      setAvatar(result.url);
+      $("try-on-status").textContent = "Photo uploaded.";
+    } catch (error) {
+      $("try-on-status").textContent = `Photo upload failed: ${error.message}`;
+    } finally {
+      event.target.value = "";
+    }
+  };
+
+  $("reset-avatar").onclick = async () => {
+    try {
+      const result = await api("/api/avatar", { method: "DELETE" });
+      setAvatar(result.url);
+      $("try-on-status").textContent = "Back to Cher.";
+    } catch (error) {
+      $("try-on-status").textContent = `Couldn't reset photo: ${error.message}`;
+    }
+  };
+
+  $("clothing-upload").onsubmit = async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const button = $("clothing-upload-button");
+    button.disabled = true;
+    $("clothing-upload-msg").textContent = "Processing photo…";
+    $("clothing-tagchip").textContent = "";
+    try {
+      const result = await api("/api/items/upload", {
+        method: "POST",
+        body: new FormData(form),
+      });
+      items = await api("/api/items");
+      const category = result.item.category;
+      const categoryItems = itemsFor(category);
+      const newPosition = categoryItems.findIndex((item) => item.id === result.item.id);
+      if (newPosition >= 0) positions[category] = newPosition;
+      const isTryOnCategory = selectCategory(category);
+      $("clothing-upload-msg").textContent = isTryOnCategory
+        ? `Added "${result.item.name}" as a ${category}.`
+        : `Added "${result.item.name}" as a ${category}. This category isn't shown in try-on yet.`;
+      const meta = result.tag_meta;
+      if (meta) {
+        const confidence = (meta.confidence ?? 0).toFixed(2);
+        $("clothing-tagchip").textContent =
+          `${meta.source} · ${confidence}${meta.needs_review ? "  review" : ""}`;
+      }
+      form.reset();
+      refresh(isTryOnCategory);
+    } catch (error) {
+      $("clothing-upload-msg").textContent = `Upload failed: ${error.message}`;
     } finally {
       button.disabled = false;
     }
   };
 
-  $("avatar-reset").onclick = async () => {
-    await api("/api/avatar", { method: "DELETE" }).catch(() => {});
-    showAvatar(null);
-    $("avatar-msg").textContent = "Back to Cher.";
-  };
+  $("try-on-like").onclick = () => submitFeedback(true);
+  $("try-on-dislike").onclick = () => submitFeedback(false);
+  $("try-on-status").textContent = "Choose items to try another look.";
+  refresh();
 }
 
-init().catch(() => ($("verdict").textContent = "Can't reach the API — is the server running?"));
+init();

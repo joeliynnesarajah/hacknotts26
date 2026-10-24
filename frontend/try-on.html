@@ -3,85 +3,84 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Wardrobe Try-On</title>
+  <title>Wardrobe — Try-On</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&display=swap">
   <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/try-on.css">
 </head>
 <body>
-  <!-- PERSON 3 — Paper-doll try-on, like Cher's closet computer dressing her on screen.
-       Same CRT shell as the closet page (index.html); the logic is in try-on.js.
-       Clothes are the item cutouts, layered over a figure: the Cher silhouette by default,
-       or your own photo (POST /api/avatar removes its background). -->
   <div class="monitor">
-    <div class="screen">
+    <div class="screen try-on-screen">
       <header class="titlebar">
-        <span>WARDROBE · TRY-ON</span>
-        <span class="titlebar-right">
-          <span id="weather" class="weather">Loading weather…</span>
-          <button id="sound-toggle" class="sound-toggle" type="button">♪ on</button>
-        </span>
+        <a href="/" class="try-on-back">WARDROBE</a>
+        <span>TRY-ON</span>
+        <div class="avatar-controls">
+          <button id="reset-avatar" type="button">Cher</button>
+          <label class="try-on-upload">
+            + Upload Avatar
+            <input id="avatar-file" type="file" accept="image/*">
+          </label>
+        </div>
       </header>
 
-      <main class="desktop">
-        <!-- Left: MATCH/MISMATCH, score and reasons -->
-        <aside class="window status">
-          <div class="win-title">STATUS</div>
+      <main class="try-on-layout">
+        <section class="window try-on-doll-panel">
+          <div class="win-title">THE OUTFIT</div>
           <div class="win-body">
-            <div id="verdict" class="verdict">Pick an outfit</div>
-            <div id="score" class="score"></div>
-            <ul id="reasons" class="reasons"></ul>
-          </div>
-        </aside>
-
-        <!-- Middle: the figure with the outfit layered on top -->
-        <section class="window dressing-room">
-          <div class="win-title">DRESSING ROOM</div>
-          <div class="win-body">
-            <div id="mannequin" class="mannequin" aria-label="Outfit preview">
-              <!-- try-on.js adds one <img class="layer ..."> per item -->
+            <div id="mannequin" role="img" aria-label="Outfit try-on mannequin">
+              <img id="layer-torso" class="layer torso" alt="">
+              <img id="layer-legs" class="layer legs" alt="">
+              <img id="layer-feet" class="layer feet" alt="">
             </div>
+            <p id="try-on-status" class="try-on-status" role="status">Loading wardrobe…</p>
           </div>
         </section>
 
-        <!-- Right: one ◀◀ ▶ ▶▶ row per slot, and the avatar controls -->
-        <aside class="side">
-          <div class="window">
-            <div class="win-title">CLOTHES</div>
-            <div id="pickers" class="win-body pickers"></div>
-          </div>
-          <div class="window">
-            <div class="win-title">MODEL</div>
+        <aside class="try-on-sidebar">
+          <section class="window">
+            <div class="win-title">CHOOSE YOUR LOOK</div>
             <div class="win-body">
-              <form id="avatar-form">
-                <input type="file" name="photo" accept="image/*" required>
-                <button type="submit">Use my photo</button>
-              </form>
-              <button id="avatar-reset" type="button" class="avatar-reset" hidden>Back to Cher</button>
-              <p id="avatar-msg" class="msg">Stand straight, facing the camera, full body in shot.</p>
+              <div class="try-on-modes" role="group" aria-label="Outfit type">
+                <button type="button" data-mode="separates" class="active">Separates</button>
+                <button type="button" data-mode="dress">Dress</button>
+              </div>
+              <div id="try-on-slots"></div>
             </div>
-          </div>
+          </section>
+
+          <section class="window">
+            <div class="win-title">ADD CLOTHES</div>
+            <div class="win-body">
+              <form id="clothing-upload" class="try-on-clothing-upload">
+                <input type="text" name="name" placeholder="Name, e.g. Blue jumper" required>
+                <input type="file" name="photo" accept="image/*" required>
+                <button id="clothing-upload-button" type="submit">Upload</button>
+              </form>
+              <p id="clothing-upload-msg" class="msg" role="status"></p>
+              <p id="clothing-tagchip" class="tagchip"></p>
+            </div>
+          </section>
+
+          <section class="window">
+            <div class="win-title">FLAT-LAY</div>
+            <div class="win-body">
+              <div id="try-on-flatlay" class="flatlay"></div>
+              <div id="try-on-verdict" class="try-on-verdict">Pick an outfit</div>
+              <p id="try-on-score" class="score"></p>
+              <ul id="try-on-reasons" class="reasons"></ul>
+            </div>
+          </section>
         </aside>
       </main>
 
-      <div class="controls">
-        <button id="suggest" class="big blue">Dress me</button>
-        <button id="like" class="big" title="I like this">Love it</button>
-        <button id="dislike" class="big" title="Not for me">As if!</button>
+      <div class="controls try-on-controls">
+        <button id="try-on-like" class="big">Love it</button>
+        <button id="try-on-dislike" class="big">As if!</button>
       </div>
-      <p id="feedback-msg" class="msg feedback-msg" role="status"></p>
-
-      <div id="stamp" class="stamp" aria-hidden="true"></div>
-
-      <nav class="mode menubar">
-        <button data-mode="separates" class="active">Separates</button>
-        <button data-mode="dress">Dresses</button>
-        <a class="menubar-link" href="/">Closet ▸</a>
-      </nav>
+      <div id="try-on-stamp" class="try-on-stamp" aria-hidden="true"></div>
     </div>
   </div>
-
-  <script src="/static/sounds.js"></script>
   <script src="/static/try-on.js"></script>
 </body>
 </html>

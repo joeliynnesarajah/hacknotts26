@@ -14,6 +14,7 @@ uvicorn backend.main:app --reload
 ```
 
 - App: http://localhost:8000
+- Try-on: http://localhost:8000/try-on.html
 - API docs (try every endpoint): http://localhost:8000/docs
 - Tests: `pytest`
 

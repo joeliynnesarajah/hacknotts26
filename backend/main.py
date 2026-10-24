@@ -18,10 +18,9 @@ Endpoints
   GET    /api/suggest                 best outfits for today's weather
   GET    /api/weather                 today's weather
   POST   /api/feedback                thumbs up/down (retrains the taste model)
-  GET    /api/avatar                  the try-on photo's URL, or null for the Cher silhouette
-  POST   /api/avatar                  upload a full-body photo -> background removed -> try-on figure
-  DELETE /api/avatar                  back to the Cher silhouette
-  GET    /try-on                      the paper-doll try-on page
+  GET    /api/avatar                  current try-on avatar, if uploaded
+  POST   /api/avatar                  upload a photo for try-on
+  DELETE /api/avatar                  reset the try-on avatar
 
 TODO (Person 4):
   - [ ] Users and login if needed
@@ -45,6 +44,7 @@ load_env()  # API keys from keys.env, before the tagger reads them
 
 from backend import db  # noqa: E402
 from backend.weather import get_weather  # noqa: E402
+from input_pipeline.background import remove_background  # noqa: E402
 from outfit_logic.feedback_model import TasteModel  # noqa: E402
 from outfit_logic.scorer import rate, suggest  # noqa: E402
 from shared.schema import Category, Feedback, Item, Outfit, Pattern, ScoredOutfit, Season, Weather  # noqa: E402
@@ -53,6 +53,7 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(messag
 
 ROOT = Path(__file__).resolve().parent.parent
 TASTE_PATH = db.DB_PATH.with_name("taste_model.joblib")  # lives next to the database
+AVATAR_PATH = ROOT / "data" / "images" / "avatar.png"
 
 app = FastAPI(title="Wardrobe API")
 conn = db.connect()
@@ -194,41 +195,28 @@ def feedback(fb: Feedback):
     return {"saved": True, "taste_model_trained": taste.model is not None}
 
 
-# ---- try-on avatar: your own photo as the paper doll ----
-AVATAR_PATH = ROOT / "data" / "images" / "avatar.png"
-
-
-def avatar_url() -> Optional[str]:
-    """URL of the saved avatar, with its save time so the browser never shows a stale copy."""
-    if not AVATAR_PATH.is_file():
-        return None
-    return f"/images/{AVATAR_PATH.name}?v={AVATAR_PATH.stat().st_mtime_ns}"
-
-
-def make_avatar(img: Image.Image) -> None:
-    from input_pipeline.background import fit_to_frame, remove_background
-    AVATAR_PATH.parent.mkdir(parents=True, exist_ok=True)
-    fit_to_frame(remove_background(img)).save(AVATAR_PATH)
-
-
 @app.post("/api/avatar")
-async def upload_avatar(photo: UploadFile = File(...)):
+async def upload_avatar(file: UploadFile = File(...)):
     try:
-        img = Image.open(io.BytesIO(await photo.read()))
-        img.load()
+        image = Image.open(io.BytesIO(await file.read()))
+        image.load()
     except Exception:
         raise HTTPException(400, "That file isn't an image")
+
     try:
-        await run_in_threadpool(make_avatar, img)  # background removal is slow; keep it off the event loop
+        cutout = await run_in_threadpool(remove_background, image)
+        AVATAR_PATH.parent.mkdir(parents=True, exist_ok=True)
+        cutout.convert("RGBA").save(AVATAR_PATH, format="PNG")
     except Exception as exc:
-        logging.getLogger(__name__).exception("avatar failed")
+        logging.getLogger(__name__).exception("avatar processing failed")
         raise HTTPException(400, f"Couldn't process that photo ({type(exc).__name__})")
-    return {"url": avatar_url()}
+
+    return {"url": "/images/avatar.png"}
 
 
 @app.get("/api/avatar")
 def get_avatar():
-    return {"url": avatar_url()}
+    return {"url": "/images/avatar.png"} if AVATAR_PATH.exists() else {"url": None}
 
 
 @app.delete("/api/avatar")
@@ -240,6 +228,11 @@ def delete_avatar():
 # ---- static files: item images + Person 3's frontend ----
 app.mount("/images", StaticFiles(directory=ROOT / "data" / "images"), name="images")
 app.mount("/static", StaticFiles(directory=ROOT / "frontend"), name="static")
+
+
+@app.get("/try-on.html")
+def try_on_page():
+    return FileResponse(ROOT / "frontend" / "try-on.html")
 
 
 @app.get("/")
