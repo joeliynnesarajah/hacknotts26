@@ -1,21 +1,20 @@
 """
-PERSON 1 — Auto-tagging category, pattern and formality with CLIP (zero-shot).
+PERSON 1 — Auto-tagging with a hosted vision model, with safe fallbacks.
 
-CLIP compares the image to text labels like "a photo of jeans" and picks the
-closest. No training needed. Requires: pip install -r requirements-ml.txt
+The chain is Pollinations -> Gemini -> placeholder. Override it with
+TAGGER_PROVIDER_ORDER (comma-separated), e.g. `TAGGER_PROVIDER_ORDER=placeholder`.
+`tag_item` always returns every key the pipeline needs and never raises.
 
-Without CLIP installed, returns placeholder tags marked needs_review=True,
-so the user fixes them on the review screen.
-
-TODO (Person 1):
-  - [ ] Measure accuracy on the Kaggle sample (compare to its labels)
-  - [ ] Improve label wording — CLIP is sensitive to phrasing
-  - [ ] Alternative: send the image to a vision LLM API and ask for JSON tags
+The old zero-shot CLIP helpers are kept below, unused and lazily imported, as a
+local option for later. They require `pip install -r requirements-ml.txt`.
 """
+import os
 from functools import lru_cache
 from typing import Dict, List
 
 from PIL import Image
+
+from input_pipeline.tagger_vlm import tag_item_gemini, tag_item_pollinations
 
 # label text -> value in our schema
 CATEGORY_LABELS = {
@@ -52,21 +51,39 @@ def _best(img: Image.Image, labels: List[str], prefix: str) -> str:
     return labels[int(probs.argmax())]
 
 
+DEFAULT_ORDER = ["pollinations", "gemini", "placeholder"]
+
+
+def _provider_order() -> List[str]:
+    raw = os.getenv("TAGGER_PROVIDER_ORDER", "")
+    names = [p.strip() for p in raw.split(",") if p.strip()]
+    names = [p for p in names if p in DEFAULT_ORDER]
+    return names or list(DEFAULT_ORDER)
+
+
+def _placeholder() -> Dict:
+    return {"name": "New item", "category": "top", "pattern": "solid",
+            "formality": 2, "seasons": list(ALL_SEASONS), "warmth": 2,
+            "confidence": 0.0, "source": "placeholder", "needs_review": True}
+
+
 def tag_item(img: Image.Image) -> Dict:
-    """Always returns every key the pipeline needs: category, pattern, formality,
-    seasons, warmth, confidence, needs_review, source. Plan 2 swaps the body for
-    the hosted vision tagger; the shape stays this."""
-    try:
-        cat = _best(img, list(CATEGORY_LABELS), "a photo of")
-        pat = _best(img, list(PATTERN_LABELS), "a photo of")
-        form = _best(img, list(FORMALITY_LABELS), "a photo of")
-        return {"category": CATEGORY_LABELS[cat], "pattern": PATTERN_LABELS[pat],
-                "formality": FORMALITY_LABELS[form], "needs_review": True,
-                "source": "placeholder", "confidence": 0.0,
-                "seasons": ALL_SEASONS, "warmth": 2}
-    except (ImportError, OSError):
-        # ImportError: CLIP isn't installed. OSError: the model download failed
-        # (no internet / HuggingFace timeout). Either way, fall back, never raise.
-        return {"category": "top", "pattern": "solid", "formality": 2, "needs_review": True,
-                "source": "placeholder", "confidence": 0.0,
-                "seasons": ALL_SEASONS, "warmth": 2}
+    """Always returns the full tag dict: name, category, pattern, formality,
+    seasons, warmth, confidence, source, needs_review.
+
+    Tries providers in order and returns the first non-None result. A provider
+    that raises is skipped (defensive only — providers already return None).
+    """
+    for name in _provider_order():
+        try:
+            if name == "pollinations":
+                tags = tag_item_pollinations(img)
+            elif name == "gemini":
+                tags = tag_item_gemini(img)
+            else:
+                return _placeholder()
+            if tags is not None:
+                return tags
+        except Exception:  # noqa: BLE001 - the contract is "never raise"
+            continue
+    return _placeholder()
