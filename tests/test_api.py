@@ -67,7 +67,8 @@ def test_upload_returns_tag_meta_without_provider_key():
     assert r.status_code == 200
     body = r.json()
     assert body["needs_review"] is True
-    assert set(body["tag_meta"]) == {"source", "confidence", "needs_review", "suggested_name"}
+    assert set(body["tag_meta"]) == {"source", "confidence", "needs_review",
+                                     "suggested_name", "updated"}
     assert body["tag_meta"]["source"] == "placeholder"
     assert body["tag_meta"]["needs_review"] is True
     item = body["item"]

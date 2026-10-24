@@ -6,15 +6,12 @@ PERSON 1 — The full flow: photo in -> Item out.
 Try it on its own:
     python -m input_pipeline.pipeline path/to/photo.jpg
 """
-import os
 import sys
 import uuid
 from pathlib import Path
+from typing import Optional
 
-from dotenv import load_dotenv
 from PIL import Image
-
-load_dotenv()  # so `python -m input_pipeline.pipeline` sees the same keys as the server
 
 from input_pipeline.background import crop_to_content, remove_background
 from input_pipeline.colors import dominant_colors
@@ -23,29 +20,29 @@ from shared.schema import Item
 
 ROOT = Path(__file__).resolve().parent.parent
 IMAGES_DIR = ROOT / "data" / "images"
+DEFAULT_NAME = "New item"
 
 
-def _images_dir() -> Path:
-    """Resolved per call so tests can point WARDROBE_IMAGES_DIR at a temp dir."""
-    return Path(os.environ.get("WARDROBE_IMAGES_DIR") or IMAGES_DIR)
-
-
-def process_photo_with_meta(photo: Image.Image, name: str = "New item") -> tuple[Item, bool, dict]:
+def process_photo_with_meta(photo: Image.Image, name: Optional[str] = None,
+                            item_id: Optional[str] = None) -> tuple[Item, bool, dict]:
     """Returns (item, needs_review, tag_meta).
 
-    tag_meta is what the UI needs to show where the tags came from:
-        {"source", "confidence", "needs_review", "suggested_name"}
+    tag_meta = {source, confidence, needs_review, suggested_name} (plus `updated`,
+    which the database adds when the row is read).
+    A name the user typed always wins; the tagger's name is only used when they
+    left it blank (or as the form default), and is always kept as suggested_name.
+    Pass item_id to get a stable id (the pretag script does); otherwise it's random.
     """
     cutout = crop_to_content(remove_background(photo))
-    item_id = uuid.uuid4().hex[:8]
-    images = _images_dir()
-    images.mkdir(parents=True, exist_ok=True)
-    cutout.save(images / f"{item_id}.png")
+    item_id = item_id or uuid.uuid4().hex[:8]
+    IMAGES_DIR.mkdir(parents=True, exist_ok=True)
+    cutout.save(IMAGES_DIR / f"{item_id}.png")
 
     tags = tag_item(cutout)
+    typed = (name or "").strip()
     item = Item(
         id=item_id,
-        name=name,
+        name=typed if typed and typed != DEFAULT_NAME else tags["name"],
         image=f"images/{item_id}.png",
         category=tags["category"],
         colors=dominant_colors(cutout),
@@ -56,24 +53,22 @@ def process_photo_with_meta(photo: Image.Image, name: str = "New item") -> tuple
     )
     meta = {
         "source": tags["source"],
-        "confidence": float(tags["confidence"]),
-        "needs_review": bool(tags["needs_review"]),
-        "suggested_name": tags.get("name"),
+        "confidence": tags["confidence"],
+        "needs_review": tags["needs_review"],
+        "suggested_name": tags["name"],
     }
-    return item, meta["needs_review"], meta
+    return item, tags["needs_review"], meta
 
 
-def process_photo(photo: Image.Image, name: str = "New item") -> tuple[Item, bool]:
-    """Returns (item, needs_review). Kept for callers that don't need the metadata."""
-    item, needs_review, _ = process_photo_with_meta(photo, name=name)
+def process_photo(photo: Image.Image, name: str = DEFAULT_NAME) -> tuple[Item, bool]:
+    """Backward-compatible: returns (item, needs_review)."""
+    item, needs_review, _ = process_photo_with_meta(photo, name)
     return item, needs_review
 
 
 if __name__ == "__main__":
-    item, review, meta = process_photo_with_meta(
-        Image.open(sys.argv[1]), name=Path(sys.argv[1]).stem
-    )
+    item, review, meta = process_photo_with_meta(Image.open(sys.argv[1]), name=Path(sys.argv[1]).stem)
     print(item.model_dump_json(indent=2))
-    print(f"\nsource={meta['source']} confidence={meta['confidence']:.2f}")
-    if review:
-        print("(Tags are guesses — the UI flags these for review.)")
+    print(f"\nsource: {meta['source']}  confidence: {meta['confidence']}  needs_review: {review}")
+    if meta["source"] == "placeholder":
+        print("(Placeholder tags - add a key to keys.env, or install requirements-ml.txt for CLIP.)")

@@ -7,16 +7,16 @@ so the user can see WHY ("two competing patterns").
 
 TODO (Person 2):
   - [ ] Tune the penalty numbers by trying lots of outfits
-  - [ ] Add rules: shoe/trouser color, metal accessories matching, etc.
-  - [ ] Later: blend with feedback_model.py predictions
+  - [ ] Add rules: metal accessories matching, etc.
 """
 import colorsys
 from itertools import combinations
 from typing import List, Tuple
 
-from shared.schema import Item, Pattern, ScoredOutfit
+from shared.schema import Category, Item, Pattern, ScoredOutfit
 
 MATCH_THRESHOLD = 0.6
+SHOE_CLASH_PENALTY = 0.12
 
 
 def hex_to_hsv(hex_color: str) -> Tuple[float, float, float]:
@@ -80,6 +80,8 @@ def pattern_penalty(items: List[Item]) -> Tuple[float, List[str]]:
 
 def formality_penalty(items: List[Item]) -> Tuple[float, List[str]]:
     levels = [it.formality for it in items]
+    if not levels:  # no items -> no mismatch; max()/min() would raise
+        return 0.0, []
     gap = max(levels) - min(levels)
     if gap >= 3:
         return 0.45, ["Formality mismatch (e.g. joggers with loafers)"]
@@ -88,9 +90,24 @@ def formality_penalty(items: List[Item]) -> Tuple[float, List[str]]:
     return 0.0, []
 
 
+def shoe_penalty(items: List[Item]) -> Tuple[float, List[str]]:
+    """Bold shoes should pick up the bottom's color family. Neutral shoes, or bold shoes
+    against neutral bottoms (red trainers with jeans), are fine."""
+    shoes = next((it for it in items if it.category == Category.shoes), None)
+    bottom = next((it for it in items if it.category == Category.bottom), None)
+    if not shoes or not bottom:
+        return 0.0, []
+    shoe_color, bottom_color = shoes.colors[0], bottom.colors[0]
+    if is_neutral(shoe_color) or is_neutral(bottom_color):
+        return 0.0, []
+    if hue_gap(hex_to_hsv(shoe_color)[0], hex_to_hsv(bottom_color)[0]) <= 35:
+        return 0.0, []
+    return SHOE_CLASH_PENALTY, [f"{shoes.name} don't pick up the color of {bottom.name}"]
+
+
 def score_outfit(items: List[Item]) -> ScoredOutfit:
     score, reasons = 0.9, []  # room for bonuses to lift good outfits to 1.0
-    for rule in (color_penalty, pattern_penalty, formality_penalty):
+    for rule in (color_penalty, pattern_penalty, formality_penalty, shoe_penalty):
         p, r = rule(items)
         score -= p
         reasons += r

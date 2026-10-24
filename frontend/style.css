@@ -220,6 +220,17 @@ input[type=text] { /* sunken white text box */
 input[type=file] { max-width: 100%; }
 .msg { margin: 8px 0 0; font-size: 1rem; } /* upload / feedback messages */
 
+/* Tag chip: where an item's tags came from. Deliberately quiet — a status line, not a feature. */
+.tagchip {
+  display: block;
+  margin: 2px 0 0;
+  font-size: 0.85em;
+  opacity: 0.65;
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+  white-space: pre; /* keep the two spaces before "review" */
+}
+
 /* --- Big buttons & menu bar --- */
 .controls { display: flex; justify-content: center; flex-wrap: wrap; gap: 14px; padding: 0 20px 16px; }
 .big { font-size: 1.5rem; padding: 6px 22px; border-width: 3px; box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.5); }

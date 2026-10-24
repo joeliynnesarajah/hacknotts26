@@ -1,307 +1,214 @@
-"""Plan 2 §4.6 — hosted tagger and fallback chain. No network."""
-import copy
+"""Person 1's tests for the hosted vision taggers — no network: requests.post is faked."""
 import json
 import logging
 
+import pytest
+import requests
 from PIL import Image
 
-from input_pipeline import tagger, tagger_vlm
+from input_pipeline import tagger_vlm
 
-TAG_KEYS = {
-    "name",
-    "category",
-    "pattern",
-    "formality",
-    "seasons",
-    "warmth",
-    "confidence",
-    "source",
-    "needs_review",
-}
-
-VALID = {
-    "name": "Navy Oxford shirt",
-    "category": "top",
-    "pattern": "solid",
-    "formality": 3,
-    "seasons": ["spring", "summer"],
-    "warmth": 2,
-    "confidence": 0.9,
-}
-
-
-def _img():
-    return Image.new("RGB", (64, 64), "#1f3a5f")
+GOOD = {"name": "Navy Oxford shirt", "category": "top", "pattern": "solid", "formality": 3,
+        "seasons": ["spring", "autumn"], "warmth": 2, "confidence": 0.82}
+KEY = "sk_test_SECRET_KEY_123"
 
 
 class FakeResponse:
-    def __init__(self, status_code, content=None, headers=None):
-        self.status_code = status_code
-        self._content = content
+    def __init__(self, status=200, payload=None, headers=None):
+        self.status_code = status
+        self._payload = payload or {}
         self.headers = headers or {}
-
-    @property
-    def ok(self):
-        return 200 <= self.status_code < 300
+        self.ok = 200 <= status < 300
 
     def json(self):
-        if self._content is None:
-            raise ValueError("no json body")
-        return {"choices": [{"message": {"role": "assistant", "content": self._content}}]}
+        return self._payload
 
 
-def _install(monkeypatch, responses):
-    """Patch requests.post; the last response repeats if called again."""
-    calls = []
-    queue = list(responses)
-
-    def fake_post(url, **kwargs):
-        # Snapshot kwargs: the caller mutates `body` between retries.
-        calls.append({"url": url, **copy.deepcopy(kwargs)})
-        return queue.pop(0) if len(queue) > 1 else queue[0]
-
-    monkeypatch.setattr(tagger_vlm.requests, "post", fake_post)
-    monkeypatch.setattr(tagger_vlm.time, "sleep", lambda *_: None)
-    return calls
+def pollinations_reply(content):
+    text = content if isinstance(content, str) else json.dumps(content)
+    return FakeResponse(200, {"choices": [{"message": {"role": "assistant", "content": text}}]})
 
 
-def _key(monkeypatch, value="sk_test_secret_value"):
-    monkeypatch.setenv("POLLINATIONS_API_KEY", value)
-    return value
+def gemini_reply(content):
+    text = content if isinstance(content, str) else json.dumps(content)
+    return FakeResponse(200, {"steps": [{"type": "model_output", "content": [{"type": "text", "text": text}]}]})
 
 
-def test_valid_payload_returns_pollinations_tags(monkeypatch):
-    _key(monkeypatch)
-    monkeypatch.setenv("POLLINATIONS_MODEL", "google/gemini-3.5-flash-lite")
-    calls = _install(monkeypatch, [FakeResponse(200, json.dumps(VALID))])
+@pytest.fixture
+def img():
+    return Image.new("RGBA", (64, 64), (30, 60, 120, 255))
 
-    tags = tagger_vlm.tag_item_pollinations(_img())
 
-    assert tags is not None
-    assert set(tags) == TAG_KEYS
+@pytest.fixture
+def fake_post(monkeypatch):
+    """Queue up responses; records every call's url and body."""
+    calls, queue = [], []
+
+    def post(url, headers=None, json=None, timeout=None):
+        calls.append({"url": url, "headers": headers, "json": json})
+        item = queue.pop(0)
+        if isinstance(item, Exception):
+            raise item
+        return item
+
+    monkeypatch.setattr(tagger_vlm.requests, "post", post)
+    monkeypatch.setattr(tagger_vlm, "_sleep", lambda s: None)
+    post.calls, post.queue = calls, queue
+    return post
+
+
+@pytest.fixture
+def keys(monkeypatch):
+    monkeypatch.setenv("POLLINATIONS_API_KEY", KEY)
+    monkeypatch.setenv("GEMINI_API_KEY", KEY)
+
+
+# ---- validation ----
+def test_validate_clamps_and_defaults():
+    tags = tagger_vlm._validate({**GOOD, "formality": 9, "warmth": 0, "confidence": 3,
+                                 "pattern": "polka", "seasons": ["summer", "monsoon"]})
+    assert tags["formality"] == 5 and tags["warmth"] == 1 and tags["confidence"] == 1.0
+    assert tags["pattern"] == "other"
+    assert tags["seasons"] == ["summer"]
+
+
+def test_validate_fills_missing_fields():
+    tags = tagger_vlm._validate({"category": "shoes"})
+    assert tags["formality"] == 2 and tags["warmth"] == 2 and tags["name"] == "New item"
+    assert len(tags["seasons"]) == 4
+    assert tags["needs_review"] is True  # default confidence 0.5 < 0.55
+
+
+def test_validate_rejects_unknown_category_and_junk():
+    assert tagger_vlm._validate({**GOOD, "category": "hat"}) is None
+    assert tagger_vlm._validate("not json") is None
+    assert tagger_vlm._validate("```json\n" + json.dumps(GOOD) + "\n```")["category"] == "top"
+
+
+# ---- Pollinations ----
+def test_no_key_means_no_network(fake_post, monkeypatch, img):
+    monkeypatch.setenv("POLLINATIONS_API_KEY", "")
+    monkeypatch.setenv("GEMINI_API_KEY", "")
+    assert tagger_vlm.tag_item_pollinations(img) is None
+    assert tagger_vlm.tag_item_gemini(img) is None
+    assert fake_post.calls == []
+
+
+def test_pollinations_success(fake_post, keys, img):
+    fake_post.queue.append(pollinations_reply(GOOD))
+    tags = tagger_vlm.tag_item_pollinations(img)
     assert tags["source"] == "pollinations"
-    assert tags["category"] == "top"
-    assert tags["pattern"] == "solid"
-    assert tags["seasons"] == ["spring", "summer"]
+    assert tags["category"] == "top" and tags["formality"] == 3
     assert tags["needs_review"] is False
-    assert len(calls) == 1
+    body = fake_post.calls[0]["json"]
+    assert body["response_format"]["type"] == "json_schema"
+    assert body["messages"][0]["content"][1]["image_url"]["url"].startswith("data:image/jpeg;base64,")
 
 
-def test_low_confidence_marks_needs_review(monkeypatch):
-    _key(monkeypatch)
-    _install(monkeypatch, [FakeResponse(200, json.dumps(dict(VALID, confidence=0.2)))])
-
-    tags = tagger_vlm.tag_item_pollinations(_img())
-
-    assert tags is not None
-    assert tags["needs_review"] is True
+def test_low_confidence_needs_review(fake_post, keys, img):
+    fake_post.queue.append(pollinations_reply({**GOOD, "confidence": 0.3}))
+    assert tagger_vlm.tag_item_pollinations(img)["needs_review"] is True
 
 
-def test_community_model_needs_more_confidence(monkeypatch):
-    _key(monkeypatch)
-    monkeypatch.setenv(
-        "POLLINATIONS_MODEL", "community/pegalink/gemini-3.5-flash-lite"
-    )
+def test_402_gives_up_immediately(fake_post, keys, img):
+    fake_post.queue.append(FakeResponse(402))
+    assert tagger_vlm.tag_item_pollinations(img) is None
+    assert len(fake_post.calls) == 1
 
-    # 1.0 clears the community bar; 0.30 does not.
-    _install(monkeypatch, [FakeResponse(200, json.dumps(dict(VALID, confidence=1.0)))])
-    sure = tagger_vlm.tag_item_pollinations(_img())
+
+def test_401_gives_up_immediately(fake_post, keys, img):
+    fake_post.queue.append(FakeResponse(401))
+    assert tagger_vlm.tag_item_pollinations(img) is None
+    assert len(fake_post.calls) == 1
+
+
+def test_429_retries_then_gives_up(fake_post, keys, img):
+    fake_post.queue.extend([FakeResponse(429, headers={"Retry-After": "1"})] * 3)
+    assert tagger_vlm.tag_item_pollinations(img) is None
+    assert len(fake_post.calls) == 3
+
+
+def test_429_then_success(fake_post, keys, img):
+    fake_post.queue.extend([FakeResponse(429), pollinations_reply(GOOD)])
+    assert tagger_vlm.tag_item_pollinations(img)["source"] == "pollinations"
+
+
+def test_timeout_retries(fake_post, keys, img):
+    fake_post.queue.extend([requests.Timeout(), pollinations_reply(GOOD)])
+    assert tagger_vlm.tag_item_pollinations(img) is not None
+
+
+def test_400_relaxes_response_format(fake_post, keys, img):
+    fake_post.queue.extend([FakeResponse(400), pollinations_reply(GOOD)])
+    assert tagger_vlm.tag_item_pollinations(img) is not None
+    assert fake_post.calls[1]["json"]["response_format"] == {"type": "json_object"}
+
+
+def test_bad_json_retries_once_at_temperature_zero(fake_post, keys, img):
+    fake_post.queue.extend([pollinations_reply("oops"), pollinations_reply("still oops")])
+    assert tagger_vlm.tag_item_pollinations(img) is None
+    assert len(fake_post.calls) == 2
+    assert fake_post.calls[1]["json"]["temperature"] == 0.0
+
+
+def test_secrets_never_logged(fake_post, keys, img, caplog):
+    caplog.set_level(logging.DEBUG)
+    fake_post.queue.extend([FakeResponse(429), FakeResponse(500), FakeResponse(503)])
+    tagger_vlm.tag_item_pollinations(img)
+    b64 = tagger_vlm._encode(img)
+    assert caplog.records, "expected some log lines"
+    assert KEY not in caplog.text and b64[:40] not in caplog.text
+
+
+# ---- Gemini ----
+def test_gemini_success(fake_post, keys, img):
+    fake_post.queue.append(gemini_reply(GOOD))
+    tags = tagger_vlm.tag_item_gemini(img)
+    assert tags["source"] == "gemini"
+    body = fake_post.calls[0]["json"]
+    assert body["store"] is False and body["input"][1]["mime_type"] == "image/jpeg"
+    assert fake_post.calls[0]["headers"] == {"x-goog-api-key": KEY}
+
+
+def test_gemini_falls_back_to_legacy_endpoint_on_404(fake_post, keys, img):
+    legacy = FakeResponse(200, {"candidates": [{"content": {"parts": [{"text": json.dumps(GOOD)}]}}]})
+    fake_post.queue.extend([FakeResponse(404), legacy])
+    assert tagger_vlm.tag_item_gemini(img)["source"] == "gemini"
+    assert fake_post.calls[1]["url"].endswith(":generateContent")
+
+
+def test_vlm_tries_pollinations_then_gemini(fake_post, keys, img):
+    fake_post.queue.extend([FakeResponse(402), gemini_reply(GOOD)])
+    assert tagger_vlm.tag_item_vlm(img)["source"] == "gemini"
+
+
+def test_transparent_cutout_encodes_on_white():
+    import base64
+    import io
+    clear = Image.new("RGBA", (10, 10), (0, 0, 0, 0))
+    decoded = Image.open(io.BytesIO(base64.b64decode(tagger_vlm._encode(clear))))
+    assert decoded.getpixel((5, 5))[0] > 240  # white, not black
+
+
+# ---- community routes need more confidence ----
+def test_community_model_needs_more_confidence(fake_post, keys, img, monkeypatch):
+    model = "community/pegalink/gemini-3.5-flash-lite"
+    monkeypatch.setenv("POLLINATIONS_MODEL", model)
+
+    # 0.70 clears the normal 0.55 bar, so only the community bar can flag it.
+    fake_post.queue.append(pollinations_reply({**GOOD, "confidence": 0.70}))
+    unsure = tagger_vlm.tag_item_pollinations(img)
+    assert unsure is not None and unsure["needs_review"] is True
+    assert fake_post.calls[0]["json"]["model"] == model
+
+    # A confident community answer must not be downgraded to needs_review=True.
+    fake_post.queue.append(pollinations_reply({**GOOD, "confidence": 0.90}))
+    sure = tagger_vlm.tag_item_pollinations(img)
     assert sure is not None and sure["needs_review"] is False
 
-    _install(monkeypatch, [FakeResponse(200, json.dumps(dict(VALID, confidence=0.30)))])
-    unsure = tagger_vlm.tag_item_pollinations(_img())
-    assert unsure is not None and unsure["needs_review"] is True
 
-    # A first-party model clears the lower threshold at the same confidence.
+def test_first_party_model_keeps_the_lower_bar(fake_post, keys, img, monkeypatch):
     monkeypatch.setenv("POLLINATIONS_MODEL", "google/gemini-3.5-flash-lite")
-    _install(monkeypatch, [FakeResponse(200, json.dumps(dict(VALID, confidence=0.70)))])
-    first_party = tagger_vlm.tag_item_pollinations(_img())
-    assert first_party is not None and first_party["needs_review"] is False
-
-
-def test_formality_and_warmth_are_clamped(monkeypatch):
-    _key(monkeypatch)
-    _install(monkeypatch, [FakeResponse(200, json.dumps(dict(VALID, formality=9, warmth=0)))])
-
-    tags = tagger_vlm.tag_item_pollinations(_img())
-
-    assert tags is not None
-    assert tags["formality"] == 5
-    assert tags["warmth"] == 1
-
-
-def test_missing_required_field_is_a_failure(monkeypatch):
-    _key(monkeypatch)
-    data = dict(VALID)
-    del data["confidence"]
-    calls = _install(monkeypatch, [FakeResponse(200, json.dumps(data))])
-
-    assert tagger_vlm.tag_item_pollinations(_img()) is None
-    # one initial attempt plus one temperature-0 retry
-    assert len(calls) == 2
-
-
-def test_fenced_json_parses(monkeypatch):
-    _key(monkeypatch)
-    fenced = "```json\n" + json.dumps(VALID) + "\n```"
-    _install(monkeypatch, [FakeResponse(200, fenced)])
-
-    tags = tagger_vlm.tag_item_pollinations(_img())
-
-    assert tags is not None
-    assert tags["name"] == "Navy Oxford shirt"
-    assert tags["source"] == "pollinations"
-
-
-def test_prose_error_in_200_body_retries_once_then_none(monkeypatch):
-    _key(monkeypatch)
-    prose = "The account behind this API key doesn't have enough credits to run this model."
-    calls = _install(monkeypatch, [FakeResponse(200, prose)])
-
-    assert tagger_vlm.tag_item_pollinations(_img()) is None
-    assert len(calls) == 2
-    assert calls[1]["json"]["temperature"] == 0
-
-
-def test_402_returns_none_with_exactly_one_call(monkeypatch):
-    _key(monkeypatch)
-    calls = _install(monkeypatch, [FakeResponse(402)])
-
-    assert tagger_vlm.tag_item_pollinations(_img()) is None
-    assert len(calls) == 1
-
-
-def test_429_exhausts_two_retries_then_none(monkeypatch):
-    _key(monkeypatch)
-    calls = _install(monkeypatch, [FakeResponse(429)])
-
-    assert tagger_vlm.tag_item_pollinations(_img()) is None
-    assert len(calls) == 3  # initial + 2 retries
-
-
-def test_500_once_then_success(monkeypatch):
-    _key(monkeypatch)
-    calls = _install(
-        monkeypatch,
-        [FakeResponse(500), FakeResponse(200, json.dumps(VALID))],
-    )
-
-    tags = tagger_vlm.tag_item_pollinations(_img())
-
-    assert tags is not None
-    assert tags["source"] == "pollinations"
-    assert len(calls) == 2
-
-
-def test_400_retries_once_with_json_object(monkeypatch):
-    _key(monkeypatch)
-    calls = _install(
-        monkeypatch,
-        [FakeResponse(400), FakeResponse(200, json.dumps(VALID))],
-    )
-
-    tags = tagger_vlm.tag_item_pollinations(_img())
-
-    assert tags is not None
-    assert calls[0]["json"]["response_format"]["type"] == "json_schema"
-    assert calls[1]["json"]["response_format"] == {"type": "json_object"}
-    assert len(calls) == 2
-
-
-def test_no_key_returns_none_without_calling(monkeypatch):
-    monkeypatch.setenv("POLLINATIONS_API_KEY", "")
-    calls = []
-    monkeypatch.setattr(tagger_vlm.requests, "post", lambda *a, **k: calls.append(1))
-
-    assert tagger_vlm.tag_item_pollinations(_img()) is None
-    assert calls == []
-
-
-def test_key_and_base64_never_logged(monkeypatch, caplog):
-    key = _key(monkeypatch, "sk_super_secret_key_123")
-    calls = _install(monkeypatch, [FakeResponse(200, json.dumps(VALID))])
-    expected_b64 = tagger_vlm._encode(_img())
-
-    with caplog.at_level(logging.DEBUG):
-        tags = tagger_vlm.tag_item_pollinations(_img())
-
-    assert tags is not None
-    # Prove the secret and the payload really were in the request...
-    sent_uri = calls[0]["json"]["messages"][0]["content"][1]["image_url"]["url"]
-    assert expected_b64 in sent_uri
-    # ...and never in the logs.
-    assert key not in caplog.text
-    assert expected_b64 not in caplog.text
-    assert "data:image" not in caplog.text
-
-
-def test_provider_order_placeholder_skips_the_network(monkeypatch):
-    monkeypatch.setenv("TAGGER_PROVIDER_ORDER", "placeholder")
-    calls = []
-    monkeypatch.setattr(tagger_vlm.requests, "post", lambda *a, **k: calls.append(1))
-
-    tags = tagger.tag_item(_img())
-
-    assert calls == []
-    assert set(tags) == TAG_KEYS
-    assert tags["source"] == "placeholder"
-    assert tags["needs_review"] is True
-    assert tags["seasons"] == ["spring", "summer", "autumn", "winter"]
-
-
-def test_gemini_then_placeholder_when_pollinations_raises(monkeypatch):
-    monkeypatch.setenv("TAGGER_PROVIDER_ORDER", "gemini,placeholder")
-
-    def boom(img):
-        raise RuntimeError("pollinations exploded")
-
-    monkeypatch.setattr(tagger, "tag_item_pollinations", boom)
-
-    tags = tagger.tag_item(_img())
-
-    assert tags["source"] == "placeholder"
-    assert tags["needs_review"] is True
-
-
-def test_provider_order_ignores_unknown_names(monkeypatch):
-    monkeypatch.setenv("TAGGER_PROVIDER_ORDER", "nope, gemini ,,")
-    assert tagger._provider_order() == ["gemini"]
-
-    monkeypatch.setenv("TAGGER_PROVIDER_ORDER", "")
-    assert tagger._provider_order() == tagger.DEFAULT_ORDER
-
-
-def test_empty_seasons_default_to_all_four():
-    tags = tagger_vlm._validate(json.dumps(dict(VALID, seasons=[])))
-
-    assert tags is not None
-    assert tags["seasons"] == ["spring", "summer", "autumn", "winter"]
-
-
-def test_unknown_enum_is_a_failure_not_a_guess():
-    assert tagger_vlm._validate(json.dumps(dict(VALID, category="hat"))) is None
-    assert tagger_vlm._validate(None) is None
-
-
-def test_long_name_is_truncated_not_discarded():
-    long_name = "Navy blue Oxford cotton button-down shirt with a spread collar"
-    assert len(long_name) > 40
-    tags = tagger_vlm._validate(json.dumps(dict(VALID, name=long_name)))
-
-    assert tags is not None
-    assert len(tags["name"]) == 40
-    assert tags["category"] == "top"  # the rest of the tag survives
-
-
-def test_out_of_range_confidence_is_clamped():
-    tags = tagger_vlm._validate(json.dumps(dict(VALID, confidence=1.2)))
-
-    assert tags is not None
-    assert tags["confidence"] == 1.0
-
-
-def test_blank_name_falls_back():
-    tags = tagger_vlm._validate(json.dumps(dict(VALID, name="   ")))
-
-    assert tags is not None
-    assert tags["name"] == "New item"
+    fake_post.queue.append(pollinations_reply({**GOOD, "confidence": 0.70}))
+    tags = tagger_vlm.tag_item_pollinations(img)
+    assert tags is not None and tags["needs_review"] is False

@@ -13,7 +13,6 @@
 // TODO (Person 3):
 //   - [ ] Swipe gestures on mobile for the carousels
 //   - [ ] Outerwear row when it's cold
-//   - [ ] Tag review screen after upload (needs_review = true)
 //   - [ ] Nicer flat-lay: overlap items like a real photo
 
 // Which carousels to show for each mode. The menu bar buttons switch between these.
@@ -25,9 +24,20 @@ const SLOTS = {
 let items = [];         // every clothing item, as returned by GET /api/items
 let mode = "separates"; // key into SLOTS
 const index = {};       // category -> current position in the carousel (missing = 0)
+let tagMeta = {};       // item id -> where its tags came from, from GET /api/tag-meta (optional)
 
 // Shorthand: $("verdict") instead of document.getElementById("verdict")
 const $ = (id) => document.getElementById(id);
+
+// Item names can come from the vision model, so escape them before putting them in HTML
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+
+// Tag chip text, e.g. "pollinations · 0.82" or "placeholder · 0.00  review"
+function chipFor(meta) {
+  if (!meta) return "";
+  const conf = (meta.confidence ?? 0).toFixed(2);
+  return `${meta.source} · ${conf}${meta.needs_review ? "  review" : ""}`;
+}
 
 // Call the backend and return the JSON reply. Throws if the server returns an error.
 // File uploads (FormData) must not get a JSON Content-Type, so we only set it for JSON bodies.
@@ -64,8 +74,9 @@ function renderCarousels() {
     row.innerHTML = `
       <figure>
         <span class="label">${cat}</span>
-        ${item ? `<img src="/${item.image}" alt="${item.name}"><figcaption>${item.name}</figcaption>`
+        ${item ? `<img src="/${item.image}" alt="${esc(item.name)}"><figcaption>${esc(item.name)}</figcaption>`
                : "<figcaption>No items yet</figcaption>"}
+        ${item && tagMeta[item.id] ? `<span class="tagchip">${esc(chipFor(tagMeta[item.id]))}</span>` : ""}
       </figure>
       <div class="vcr">
         <button aria-label="previous ${cat}">◀◀</button>
@@ -91,7 +102,7 @@ function step(cat, delta) {
 
 // Show the current outfit's photos side by side in the FLAT-LAY window.
 function renderFlatlay(outfit) {
-  $("flatlay").innerHTML = outfit.map((it) => `<img src="/${it.image}" alt="${it.name}">`).join("");
+  $("flatlay").innerHTML = outfit.map((it) => `<img src="/${it.image}" alt="${esc(it.name)}">`).join("");
 }
 
 // Flash the verdict across the whole screen, like the Clueless closet.
@@ -123,7 +134,7 @@ async function scoreCurrent() {
   $("verdict").className = "verdict " + result.verdict.toLowerCase(); // colours it green/red
   flashStamp($("verdict").textContent, result.verdict.toLowerCase());
   $("score").textContent = `Score ${(result.score * 100).toFixed(0)} / 100`;
-  $("reasons").innerHTML = result.reasons.map((r) => `<li>${r}</li>`).join("");
+  $("reasons").innerHTML = result.reasons.map((r) => `<li>${esc(r)}</li>`).join("");
 }
 
 // Redraw everything after any change. Scoring is async; errors go to the console.
@@ -167,6 +178,9 @@ async function init() {
     $("weather").textContent = `${Math.round(w.temperature_c)}°C${w.raining ? ", raining" : ""} · ${w.season}`;
   });
 
+  // Tag chips under the carousel captions. Optional: if this fails, the page just has no chips.
+  api("/api/tag-meta").then((m) => { tagMeta = m; renderCarousels(); }).catch(() => {});
+
   // Menu bar: SEPARATES / DRESSES. Each button's data-mode is a key in SLOTS.
   document.querySelectorAll(".mode button").forEach((btn) => {
     btn.onclick = () => {
@@ -190,18 +204,23 @@ async function init() {
     $("upload-msg").textContent = "Noted — these won't be suggested for a few days.";
   };
 
-  // ADD CLOTHES — send the photo to the backend, which removes the background
-  // and guesses the category/colour, then reload the item list so it appears.
+  // ADD CLOTHES — send the photo to the backend, which removes the background,
+  // tags it with the vision model, then reload the item list so it appears.
+  // The tag chip has its own element (#tagchip) so feedback messages don't overwrite it.
   $("upload").onsubmit = async (e) => {
     e.preventDefault(); // stop the browser doing a normal page-reloading form submit
     $("upload-msg").textContent = "Processing photo…";
+    $("tagchip").textContent = "";
     try {
       const res = await api("/api/items/upload", { method: "POST", body: new FormData(e.target) });
       items = await api("/api/items");
-      $("upload-msg").textContent = res.needs_review
-        ? `Added "${res.item.name}". Tags are guesses — check them (review screen is a TODO).`
-        : `Added "${res.item.name}" as a ${res.item.category}.`;
+      if (res.tag_meta) tagMeta[res.item.id] = res.tag_meta;
+      $("tagchip").textContent = chipFor(res.tag_meta);
+      $("upload-msg").textContent = `Added "${res.item.name}" as a ${res.item.category}.`;
       e.target.reset();
+      // Jump that carousel to the new item so you see it straight away
+      const pos = ofCategory(res.item.category).findIndex((x) => x.id === res.item.id);
+      if (pos >= 0) index[res.item.category] = pos;
       refresh();
     } catch (err) {
       $("upload-msg").textContent = "Upload failed: " + err.message;

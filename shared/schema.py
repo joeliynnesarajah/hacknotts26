@@ -53,7 +53,9 @@ class Item(BaseModel):
 
 
 class Outfit(BaseModel):
-    item_ids: List[str]
+    # At least one item: scoring nothing is meaningless, and the rules would blow up
+    # on an empty list (max() of no formality levels).
+    item_ids: List[str] = Field(min_length=1)
 
 
 class ScoredOutfit(BaseModel):

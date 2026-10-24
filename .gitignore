@@ -9,9 +9,10 @@ __pycache__/
 venv/
 env/
 
-# Secrets
+# Secrets (API keys go in keys.env — see shared/env.py)
 .env
 .env.*
+keys.env
 
 # Local database (rebuilt from data/sample_items.json)
 data/*.db
