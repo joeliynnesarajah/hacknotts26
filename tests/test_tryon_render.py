@@ -77,8 +77,10 @@ def test_prompt_numbers_garments_after_the_person():
     items = tryon_render.ordered(outfit("s1", "b1", "t1", "o1"))
     assert [it.category.value for it in items] == ["outerwear", "top", "bottom", "shoes"]
     prompt = tryon_render.build_prompt(items)
-    assert "Image 1 shows a person" in prompt
-    assert "jacket or coat from image 2" in prompt and "shoes from image 5" in prompt
+    assert "Image 1 is the reference photo of the person" in prompt
+    assert "Image 2: the jacket or coat" in prompt and "Image 5: the shoes" in prompt
+    assert tryon_render.TRYON_SPEC in prompt  # the team's spec, word for word
+    assert "pure white background" in prompt and "IDENTITY PRESERVATION" in prompt
 
 
 def test_render_key_depends_on_person_and_items(person, tmp_path):
@@ -289,3 +291,61 @@ def test_pick_outfit_ignores_coats_when_avoiding():
         pick = pick_outfit(items, Weather(temperature_c=3), avoid=on_screen, rng=random.Random(seed))
         visible = {i for i in pick.item_ids if SAMPLE[i].category.value != "outerwear"} if all(i in SAMPLE for i in pick.item_ids) else set()
         assert visible != {"t6", "b4", "s3"}  # not the same look with only the coat swapped
+
+
+def test_whiten_background_makes_pure_white_but_keeps_a_contact_shadow(monkeypatch):
+    """Fake rembg's person mask so the test is fast and deterministic."""
+    import numpy as np
+    import rembg
+    w, h = 200, 300
+    arr = np.full((h, w, 3), 232, dtype=np.uint8)                 # 'nearly white' model background
+    arr[:, :20] = 215                                             # darker vignette at one edge
+    arr[int(h * 0.88):, :] = 222                                  # floor band across the whole width
+    arr[30:280, 80:120] = (40, 60, 120)                           # the person, feet end at y=280
+    arr[280:286, 70:130] = 190                                    # contact shadow under the feet
+    img = Image.fromarray(arr)
+    mask = np.zeros((h, w), dtype=np.uint8)
+    mask[30:280, 80:120] = 255
+    monkeypatch.setattr(rembg, "remove", lambda im, session=None, only_mask=False: Image.fromarray(mask))
+    monkeypatch.setattr(tryon_render, "_rembg_session", lambda: None, raising=False)
+    import input_pipeline.background as background
+    monkeypatch.setattr(background, "_rembg_session", lambda: None)
+    out = np.asarray(tryon_render.whiten_background(img)).astype(int)
+    assert (out[:, :20] == 255).all()                     # vignette gone
+    assert (out[int(h * 0.88):, :40] == 255).all()        # floor band gone away from the feet
+    assert (out[:25] == 255).all()                        # top band pure white
+    assert out[282, 100].max() < 255                      # shadow right under the feet kept
+    assert tuple(out[150, 100]) == (40, 60, 120)          # person untouched
+
+
+# ---- bug: "Dress me" could (almost) never put on a dress ----
+def test_pick_outfit_respects_the_dress_mode():
+    items = list(SAMPLE.values())
+    for seed in range(20):
+        pick = pick_outfit(items, Weather(temperature_c=18), rng=random.Random(seed), kind="dress")
+        assert any(SAMPLE[i].category.value == "dress" for i in pick.item_ids)
+        pick = pick_outfit(items, Weather(temperature_c=18), rng=random.Random(seed), kind="separates")
+        assert not any(SAMPLE[i].category.value == "dress" for i in pick.item_ids)
+
+
+def test_dresses_are_not_crowded_out_without_a_mode():
+    """Hundreds of top+bottom+shoes combos vs a handful of dress combos used to give ~5% dresses."""
+    items = list(SAMPLE.values())
+    dresses = sum(any(SAMPLE[i].category.value == "dress" for i in pick_outfit(items, Weather(temperature_c=18),
+                                                                                 rng=random.Random(s)).item_ids)
+                  for s in range(200))
+    assert 70 <= dresses <= 130  # about half
+
+
+def test_pick_outfit_dress_mode_without_dresses():
+    no_dresses = [it for it in SAMPLE.values() if it.category.value != "dress"]
+    assert pick_outfit(no_dresses, rng=random.Random(0), kind="dress") is None
+    assert pick_outfit(no_dresses, rng=random.Random(0)) is not None  # "any" falls back to separates
+
+
+def test_random_outfit_endpoint_modes():
+    for _ in range(5):
+        r = client.get("/api/outfit/random", params={"mode": "dress", "temperature_c": 18})
+        assert r.status_code == 200
+        assert any(i.startswith("d") for i in r.json()["item_ids"])
+    assert client.get("/api/outfit/random", params={"mode": "hats"}).status_code == 422

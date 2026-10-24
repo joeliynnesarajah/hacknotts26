@@ -36,17 +36,36 @@ def suggest(items: List[Item], weather: Optional[Weather] = None, taste: Optiona
     return scored[:top_n]
 
 
+OUTFIT_KINDS = ("separates", "dress")
+
+
+def outfit_kind(item_ids: Collection[str], items_by_id: dict) -> str:
+    return "dress" if any(items_by_id[i].category == Category.dress for i in item_ids if i in items_by_id) else "separates"
+
+
 def pick_outfit(items: List[Item], weather: Optional[Weather] = None, taste: Optional[TasteModel] = None,
                 exclude_ids: set[str] = frozenset(), avoid: Collection[str] = (),
-                rng: random.Random = random) -> Optional[ScoredOutfit]:
+                rng: random.Random = random, kind: Optional[str] = None) -> Optional[ScoredOutfit]:
     """A random good outfit, so "Dress me" gives something different each time.
+
+    kind: "separates" or "dress" to pick within the mode the user is in. With no kind, the
+    kind is chosen first, 50/50 among the kinds that have outfits: there are far more
+    top+bottom+shoes combinations than dress+shoes ones, so picking from all outfits at once
+    would almost never land on a dress.
 
     Only outfits the scorer calls MATCH are eligible; better scores are more likely
     (weighted by score). `avoid` is the outfit currently on screen, which is skipped
     when there's any other choice. If nothing matches, falls back to one of the three
-    best-scoring outfits. None if no outfit can be built at all.
+    best-scoring outfits. None if no outfit (of that kind) can be built at all.
     """
+    by_id = {it.id: it for it in items}
     scored = [rate(o, taste) for o in generate_outfits(items, weather, exclude_ids)]
+    groups = {k: [s for s in scored if outfit_kind(s.item_ids, by_id) == k] for k in OUTFIT_KINDS}
+    if kind in groups:
+        scored = groups[kind]
+    else:
+        available = [k for k in OUTFIT_KINDS if groups[k]]
+        scored = groups[rng.choice(available)] if available else []
     if not scored:
         return None
     pool = [s for s in scored if s.verdict == "MATCH"] or sorted(scored, key=lambda s: s.score, reverse=True)[:3]

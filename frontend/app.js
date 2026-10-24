@@ -253,14 +253,15 @@ async function init() {
   $("suggest").onclick = async () => {
     try {
       const avoid = currentOutfit().map((it) => it.id).join(",");
-      const pick = await api(`/api/outfit/random?avoid=${encodeURIComponent(avoid)}`);
+      // Stay in the mode the user is in: Dresses mode always gets a dress
+      const pick = await api(`/api/outfit/random?mode=${mode}&avoid=${encodeURIComponent(avoid)}`);
       showOutfit(pick.item_ids);
       // A coat on a cold day has no carousel slot, so mention it
       const coats = pick.item_ids.map((id) => items.find((it) => it.id === id))
         .filter((it) => it && it.category === "outerwear");
       $("upload-msg").textContent = coats.length ? `Add the ${coats.map((c) => c.name).join(", ")}: it's chilly out.` : "";
     } catch (err) {
-      $("verdict").textContent = "Nothing to wear yet";
+      $("verdict").textContent = mode === "dress" ? "No dresses yet" : "Nothing to wear yet";
     }
   };
   $("like").onclick = () => sendFeedback(true);

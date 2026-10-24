@@ -24,7 +24,7 @@ def test_upload_get_and_delete_avatar(tmp_path, monkeypatch):
 
     response = client.post("/api/avatar", files={"file": ("avatar.png", _png_bytes(), "image/png")})
     assert response.status_code == 200
-    assert response.json() == {"url": "/images/avatar.png"}
+    assert response.json()["url"] == "/images/avatar.png"  # may also carry a close-up warning
     assert avatar_path.is_file()
     with Image.open(avatar_path) as saved:
         assert saved.format == "PNG"
@@ -46,3 +46,16 @@ def test_try_on_page_is_served():
     assert response.status_code == 200
     assert "Try-On" in response.text
     assert "/static/try-on.js" in response.text
+
+
+def test_close_up_avatar_gets_a_warning(tmp_path, monkeypatch):
+    monkeypatch.setattr(main, "AVATAR_PATH", tmp_path / "avatar.png")
+    monkeypatch.setattr(main, "remove_background", lambda image: image)
+    wide = io.BytesIO()
+    Image.new("RGB", (60, 40), "red").save(wide, format="PNG")     # head-and-shoulders shape
+    r = client.post("/api/avatar", files={"file": ("me.png", wide.getvalue(), "image/png")})
+    assert "full-body" in r.json()["warning"]
+    tall = io.BytesIO()
+    Image.new("RGB", (30, 100), "red").save(tall, format="PNG")    # standing-person shape
+    r = client.post("/api/avatar", files={"file": ("me.png", tall.getvalue(), "image/png")})
+    assert "warning" not in r.json()

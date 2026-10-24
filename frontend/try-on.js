@@ -37,24 +37,110 @@ function currentOutfit() {
     .filter(Boolean);
 }
 
-function showItemLayer(layerId, item) {
+// ---- paper doll: fit each garment cutout onto the body ----
+// Width / height of each layer box in try-on.css (% of the 180x420 frame), to choose fill vs contain
+const LAYER_BOX_ASPECT = {
+  torso: (0.65 * 180) / (0.305 * 420),
+  legs: (0.49 * 180) / (0.43 * 420),
+  dress: (0.66 * 180) / (0.56 * 420),
+};
+const preparedCache = {};
+let layerRequest = 0;
+
+// Crop a cutout to its visible pixels (they're padded squares) and, for tops, cut off a hanger:
+// narrow rows at the very top (the hook) are dropped. Returns {src, aspect}; cached per image.
+function prepareGarment(src, category) {
+  const cacheKey = `${category}|${src}`;
+  if (!preparedCache[cacheKey]) {
+    preparedCache[cacheKey] = new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const w = img.naturalWidth;
+        const h = img.naturalHeight;
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0);
+        let data;
+        try {
+          data = ctx.getImageData(0, 0, w, h).data;
+        } catch {
+          return resolve({ src, aspect: w / h });
+        }
+        const rowWidth = new Array(h).fill(0);
+        let x0 = w, x1 = -1, y0 = h, y1 = -1;
+        for (let y = 0; y < h; y++) {
+          let first = -1, last = -1;
+          for (let x = 0; x < w; x++) {
+            if (data[(y * w + x) * 4 + 3] > 24) {
+              if (first < 0) first = x;
+              last = x;
+            }
+          }
+          if (first >= 0) {
+            rowWidth[y] = last - first + 1;
+            if (y < y0) y0 = y;
+            y1 = y;
+          }
+        }
+        if (y1 < 0) return resolve({ src, aspect: w / h });
+        if (["top", "outerwear", "dress"].includes(category)) {
+          const widest = Math.max(...rowWidth);
+          while (y0 < y1 && rowWidth[y0] < widest * 0.3) y0++; // hanger hook / tag loop
+        }
+        for (let y = y0; y <= y1; y++) {
+          for (let x = 0; x < w; x++) {
+            if (data[(y * w + x) * 4 + 3] > 24) {
+              if (x < x0) x0 = x;
+              if (x > x1) x1 = x;
+            }
+          }
+        }
+        const out = document.createElement("canvas");
+        out.width = x1 - x0 + 1;
+        out.height = y1 - y0 + 1;
+        out.getContext("2d").drawImage(canvas, x0, y0, out.width, out.height, 0, 0, out.width, out.height);
+        resolve({ src: out.toDataURL("image/png"), aspect: out.width / out.height });
+      };
+      img.onerror = () => resolve({ src, aspect: 1 });
+      img.src = src;
+    });
+  }
+  return preparedCache[cacheKey];
+}
+
+function showItemLayer(layerId, item, prepared, box) {
   const layer = $(layerId);
-  if (!item) {
+  layer.classList.toggle("dress", item?.category === "dress");
+  if (!item || !prepared) {
     layer.removeAttribute("src");
     layer.hidden = true;
     return;
   }
-  layer.src = `/${item.image}`;
+  // Stretch to the body when the garment's shape is close to its box; otherwise keep its shape
+  const ratio = box ? prepared.aspect / LAYER_BOX_ASPECT[box] : 1;
+  layer.classList.toggle("fit-contain", Boolean(box) && (ratio < 0.7 || ratio > 1.45));
+  layer.src = prepared.src;
+  layer.alt = item.name;
   layer.hidden = false;
 }
 
-function renderLayers() {
+async function renderLayers() {
+  const request = ++layerRequest;
   const outfit = currentOutfit();
-  showItemLayer("layer-torso", mode === "separates" ? outfit.find((item) => item.category === "top") : null);
-  showItemLayer("layer-legs", outfit.find((item) => item.category === "bottom" || item.category === "dress"));
-  showItemLayer("layer-feet", outfit.find((item) => item.category === "shoes"));
   $("try-on-flatlay").innerHTML = outfit.map((item) =>
     `<img class="try-on-flat-item" src="/${esc(item.image)}" alt="${esc(item.name)}">`).join("");
+  const top = mode === "separates" ? outfit.find((item) => item.category === "top") : null;
+  const lower = outfit.find((item) => item.category === "bottom" || item.category === "dress");
+  const shoes = outfit.find((item) => item.category === "shoes");
+  const [topImg, lowerImg, shoeImg] = await Promise.all([top, lower, shoes].map((item) =>
+    item ? prepareGarment(`/${item.image}`, item.category) : null));
+  if (request !== layerRequest) return; // the outfit changed while images were loading
+  showItemLayer("layer-torso", top, topImg, "torso");
+  showItemLayer("layer-legs", lower, lowerImg, lower?.category === "dress" ? "dress" : "legs");
+  showItemLayer("layer-feet", shoes, shoeImg, null);
+  showItemLayer("layer-feet-left", shoes, shoeImg, null);
 }
 
 function renderSlots() {
@@ -173,7 +259,7 @@ function refresh(announceChange = false) {
   clearRender(); // any AI photo on screen shows the previous outfit
   extraIds = [];  // a coat from "Dress me" belongs to that pick only
   renderSlots();
-  renderLayers();
+  renderLayers().catch(console.error);
   scoreOutfit(announceChange).catch((error) => {
     $("try-on-status").textContent = `Couldn't score outfit: ${error.message}`;
   });
@@ -249,7 +335,8 @@ async function dressMe() {
   button.disabled = true;
   try {
     const avoid = outfitIds().join(",");
-    const pick = await api(`/api/outfit/random?avoid=${encodeURIComponent(avoid)}`);
+    // Stay in the mode the user is in: Dress mode always gets a dress
+    const pick = await api(`/api/outfit/random?mode=${mode}&avoid=${encodeURIComponent(avoid)}`);
     const chosen = pick.item_ids.map((id) => items.find((item) => item.id === id)).filter(Boolean);
     selectCategory(chosen.some((item) => item.category === "dress") ? "dress" : "top");
     for (const item of chosen) {
@@ -361,7 +448,7 @@ async function init() {
       form.append("file", file);
       const result = await api("/api/avatar", { method: "POST", body: form });
       setAvatar(result.url);
-      $("try-on-status").textContent = "Photo uploaded.";
+      $("try-on-status").textContent = result.warning || "Photo uploaded.";
     } catch (error) {
       $("try-on-status").textContent = `Photo upload failed: ${error.message}`;
     } finally {

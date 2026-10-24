@@ -28,24 +28,29 @@
   overflow: hidden;
   margin: 8px auto;
   background-image: url("/static/cher-silhouette.svg");
-  background-size: contain;
+  background-size: 100% 100%; /* silhouette and normalised avatars share the 180x420 frame */
   background-repeat: no-repeat;
   background-position: center;
   background-color: #f4e8d9;
 }
+/* Garment layers. Boxes are % of the 180x420 frame and match the body landmarks of the
+   silhouette and of avatars scaled by the backend (neckline ~19%, waistband ~46%, ankles ~87%).
+   try-on.js trims each cutout to the garment (and cuts off hangers) and switches to .fit-contain
+   when a garment's shape is far from its box (e.g. a short skirt), so nothing is badly stretched. */
 .layer {
   position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  width: auto;
-  height: auto;
-  max-width: 90%;
-  object-fit: contain;
+  object-fit: fill;
   pointer-events: none;
+  filter: drop-shadow(0 1px 1.2px rgba(0, 0, 0, 0.35)); /* lifts the layer off the body */
 }
-.layer.torso { top: 90px; width: 140px; height: 130px; }
-.layer.legs { top: 210px; width: 145px; height: 150px; }
-.layer.feet { top: 330px; width: 150px; height: 85px; }
+.layer.fit-contain { object-fit: contain; object-position: center top; }
+.layer.torso { left: 17.5%; width: 65%; top: 18.5%; height: 30.5%; z-index: 3; }
+.layer.legs { left: 25.5%; width: 49%; top: 45.2%; height: 43%; z-index: 1; }
+.layer.legs.dress { left: 17%; width: 66%; top: 18.5%; height: 56%; z-index: 2; }
+/* Shoe photos are low side views; stretching them over the whole foot hides the feet underneath */
+.layer.feet { top: 88.6%; width: 22.5%; height: 8.6%; z-index: 2; }
+.layer.feet.left { left: 26%; transform: scaleX(-1); } /* mirrored, so the pair points outwards */
+.layer.feet.right { left: 51.5%; }
 .try-on-status { min-height: 1.2em; margin: 4px 0; text-align: center; }
 .try-on-sidebar { display: contents; }
 .try-on-sidebar > section:nth-child(1) { grid-column: 1; grid-row: 1; }

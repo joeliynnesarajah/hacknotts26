@@ -48,7 +48,7 @@ load_env()  # API keys from keys.env, before the tagger reads them
 
 from backend import db  # noqa: E402
 from backend.weather import get_weather  # noqa: E402
-from input_pipeline.background import remove_background  # noqa: E402
+from input_pipeline.background import fit_to_frame, remove_background  # noqa: E402
 from outfit_logic.feedback_model import TasteModel  # noqa: E402
 from input_pipeline import tryon_render  # noqa: E402
 from outfit_logic.scorer import pick_outfit, rate, suggest  # noqa: E402
@@ -194,18 +194,23 @@ def suggest_outfits(top_n: int = 5, temperature_c: Optional[float] = None):
 
 
 @app.get("/api/outfit/random", response_model=ScoredOutfit)
-def random_outfit(avoid: str = "", temperature_c: Optional[float] = None):
+def random_outfit(avoid: str = "", temperature_c: Optional[float] = None, mode: str = "any"):
     """"Dress me": a random good match for today's weather, different from `avoid`
-    (comma-separated ids of the outfit on screen). If the weather rules leave nothing
+    (comma-separated ids of the outfit on screen). `mode` is the page's mode: "separates",
+    "dress", or "any" (dress vs separates chosen 50/50). If the weather rules leave nothing
     (e.g. cold but no coats), it ignores the weather rather than giving up."""
+    if mode not in ("separates", "dress", "any"):
+        raise HTTPException(422, "mode must be separates, dress or any")
     w = get_weather()
     if temperature_c is not None:
         w.temperature_c = temperature_c
     items = db.list_items(conn)
     avoid_ids = [i for i in avoid.split(",") if i]
-    pick = pick_outfit(items, w, taste, avoid=avoid_ids) or pick_outfit(items, None, taste, avoid=avoid_ids)
+    kind = None if mode == "any" else mode
+    pick = (pick_outfit(items, w, taste, avoid=avoid_ids, kind=kind)
+            or pick_outfit(items, None, taste, avoid=avoid_ids, kind=kind))
     if pick is None:
-        raise HTTPException(404, "Not enough clothes to make an outfit")
+        raise HTTPException(404, "No dresses to choose from yet" if mode == "dress" else "Not enough clothes to make an outfit")
     return pick
 
 
@@ -271,14 +276,24 @@ async def upload_avatar(file: UploadFile = File(...)):
 
     try:
         cutout = await run_in_threadpool(remove_background, image)
+        # Same 180:420 frame and body placement as the Cher silhouette (head at the top, feet at
+        # the bottom), so the try-on page's garment boxes land on the right body parts.
+        cutout = cutout.convert("RGBA")
+        framed = fit_to_frame(cutout)
         AVATAR_PATH.parent.mkdir(parents=True, exist_ok=True)
-        cutout.convert("RGBA").save(AVATAR_PATH, format="PNG")
+        framed.save(AVATAR_PATH, format="PNG")
         tryon_render.purge_person("avatar")  # renders of the previous photo no longer apply
     except Exception as exc:
         logging.getLogger(__name__).exception("avatar processing failed")
         raise HTTPException(400, f"Couldn't process that photo ({type(exc).__name__})")
 
-    return {"url": "/images/avatar.png"}
+    # A standing person is about 2.5-4x taller than wide. Anything much squatter is probably a
+    # close-up or half-body shot, which the paper doll can't dress (the head ends up where the legs go).
+    reply = {"url": "/images/avatar.png"}
+    bbox = cutout.getbbox()
+    if bbox and (bbox[3] - bbox[1]) < 1.7 * (bbox[2] - bbox[0]):
+        reply["warning"] = "This looks like a close-up. For try-on, use a full-body photo, head to feet."
+    return reply
 
 
 @app.get("/api/avatar")

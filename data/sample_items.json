@@ -13,12 +13,13 @@
   {"id": "b5", "name": "Grey joggers", "image": "images/b5.png", "category": "bottom", "colors": ["#9a9da1"], "pattern": "solid", "formality": 1, "seasons": ["spring", "autumn", "winter"], "warmth": 3},
 
   {"id": "d1", "name": "Green midi dress", "image": "images/d1.png", "category": "dress", "colors": ["#2e6b4f"], "pattern": "solid", "formality": 4, "seasons": ["spring", "summer", "autumn"], "warmth": 2},
+  {"id": "d2", "name": "Burgundy knit jumper dress", "image": "images/d2.png", "category": "dress", "colors": ["#7a1f2b"], "pattern": "solid", "formality": 2, "seasons": ["autumn", "winter"], "warmth": 4},
+  {"id": "d3", "name": "Navy wrap dress", "image": "images/d3.png", "category": "dress", "colors": ["#1f3a5f"], "pattern": "solid", "formality": 3, "seasons": ["spring", "summer", "autumn"], "warmth": 2},
 
   {"id": "s1", "name": "White trainers", "image": "images/s1.png", "category": "shoes", "colors": ["#f4f4f2"], "pattern": "solid", "formality": 2, "seasons": ["spring", "summer", "autumn", "winter"], "warmth": 2},
   {"id": "s2", "name": "Brown leather boots", "image": "images/s2.png", "category": "shoes", "colors": ["#6b4226"], "pattern": "solid", "formality": 3, "seasons": ["autumn", "winter"], "warmth": 4},
   {"id": "s3", "name": "Black loafers", "image": "images/s3.png", "category": "shoes", "colors": ["#1b1b1b"], "pattern": "solid", "formality": 4, "seasons": ["spring", "summer", "autumn", "winter"], "warmth": 2},
   {"id": "s4", "name": "Sandals", "image": "images/s4.png", "category": "shoes", "colors": ["#c8a27a"], "pattern": "solid", "formality": 1, "seasons": ["summer"], "warmth": 1},
-
   {"id": "o1", "name": "Camel coat", "image": "images/o1.png", "category": "outerwear", "colors": ["#b88a5a"], "pattern": "solid", "formality": 4, "seasons": ["autumn", "winter"], "warmth": 5},
   {"id": "o2", "name": "Denim jacket", "image": "images/o2.png", "category": "outerwear", "colors": ["#5b7fae"], "pattern": "solid", "formality": 2, "seasons": ["spring", "autumn"], "warmth": 3}
 ]
