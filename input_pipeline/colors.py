@@ -24,6 +24,12 @@ def dominant_colors(img: Image.Image, k: int = 3, min_share: float = 0.12) -> Li
     for idx in order:
         if counts[idx] / total < min_share:
             continue
-        r, g, b = km.cluster_centers_[idx].astype(int)
+        # Report a colour that actually appears in the garment. The centroid
+        # drifts toward the antialiased edges (a #c0392b square averages to
+        # #bf392b), so use the real pixel nearest the centre instead.
+        cluster = pixels[km.labels_ == idx]
+        centre = km.cluster_centers_[idx]
+        nearest = cluster[np.argmin(((cluster - centre) ** 2).sum(axis=1))]
+        r, g, b = nearest
         hexes.append(f"#{r:02x}{g:02x}{b:02x}")
     return hexes or ["#808080"]

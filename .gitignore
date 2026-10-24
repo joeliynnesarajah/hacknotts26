@@ -30,3 +30,6 @@ fashion-product-images-small/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Uploaded cutouts (8-hex ids); the seed images have 2-char names
+data/images/????????.png

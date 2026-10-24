@@ -34,6 +34,7 @@ FORMALITY_LABELS = {
     "loungewear or gym clothes": 1, "casual everyday clothes": 2, "smart casual clothes": 3,
     "business clothes": 4, "formal evening wear": 5,
 }
+ALL_SEASONS = ["spring", "summer", "autumn", "winter"]
 
 
 @lru_cache(maxsize=1)
@@ -52,11 +53,20 @@ def _best(img: Image.Image, labels: List[str], prefix: str) -> str:
 
 
 def tag_item(img: Image.Image) -> Dict:
+    """Always returns every key the pipeline needs: category, pattern, formality,
+    seasons, warmth, confidence, needs_review, source. Plan 2 swaps the body for
+    the hosted vision tagger; the shape stays this."""
     try:
         cat = _best(img, list(CATEGORY_LABELS), "a photo of")
         pat = _best(img, list(PATTERN_LABELS), "a photo of")
         form = _best(img, list(FORMALITY_LABELS), "a photo of")
         return {"category": CATEGORY_LABELS[cat], "pattern": PATTERN_LABELS[pat],
-                "formality": FORMALITY_LABELS[form], "needs_review": False}
-    except ImportError:
-        return {"category": "top", "pattern": "solid", "formality": 2, "needs_review": True}
+                "formality": FORMALITY_LABELS[form], "needs_review": True,
+                "source": "placeholder", "confidence": 0.0,
+                "seasons": ALL_SEASONS, "warmth": 2}
+    except (ImportError, OSError):
+        # ImportError: CLIP isn't installed. OSError: the model download failed
+        # (no internet / HuggingFace timeout). Either way, fall back, never raise.
+        return {"category": "top", "pattern": "solid", "formality": 2, "needs_review": True,
+                "source": "placeholder", "confidence": 0.0,
+                "seasons": ALL_SEASONS, "warmth": 2}
