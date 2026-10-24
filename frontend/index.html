@@ -20,7 +20,10 @@
       <!-- Grey bar along the top; #weather is filled from GET /api/weather -->
       <header class="titlebar">
         <span>WARDROBE</span>
-        <span id="weather" class="weather">Loading weather…</span>
+        <span class="titlebar-right">
+          <span id="weather" class="weather">Loading weather…</span>
+          <button id="sound-toggle" class="sound-toggle" type="button">♪ on</button>
+        </span>
       </header>
 
       <!-- Three columns: STATUS | clothes | flat-lay + upload -->
@@ -86,10 +89,12 @@
       <nav class="mode menubar">
         <button data-mode="separates" class="active">Separates</button>
         <button data-mode="dress">Dresses</button>
+        <a class="menubar-link" href="/try-on">Try-on ▸</a>
       </nav>
     </div>
   </div>
 
+  <script src="/static/sounds.js"></script>
   <script src="/static/app.js"></script>
 </body>
 </html>

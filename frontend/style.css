@@ -274,6 +274,53 @@ input[type=file] { max-width: 100%; }
 .menubar button { border-color: transparent; background: transparent; padding: 0 16px; }
 .menubar button:hover { border-color: var(--hi) var(--lo) var(--lo) var(--hi); }
 .menubar button.active { background: var(--blue); color: #fff; border-color: var(--lo) var(--hi) var(--hi) var(--lo); }
+/* "Try-on ▸" / "Closet ▸": a link styled like the menu items, pushed to the right */
+.menubar-link { margin-left: auto; padding: 0 16px; color: var(--ink); text-decoration: none; text-transform: uppercase; letter-spacing: 0.08em; border: 2px solid transparent; }
+.menubar-link:hover { border-color: var(--hi) var(--lo) var(--lo) var(--hi); }
+
+/* Sound on/off, small, in the title bar */
+.titlebar-right { display: flex; align-items: center; gap: 12px; }
+.sound-toggle { font-size: 0.95rem; padding: 0 8px; text-transform: lowercase; }
+
+/* --- Try-on page (try-on.html) --- */
+.dressing-room { height: 100%; display: flex; flex-direction: column; }
+.dressing-room .win-body { flex: 1; display: flex; justify-content: center; align-items: center; min-height: 0; }
+/* The figure: a 180x420 frame (the silhouette's proportions), drawn as tall as the window allows.
+   The Cher SVG or your photo is the background; clothes are <img class="layer"> on top. */
+.mannequin {
+  position: relative;
+  height: 100%;
+  max-height: 620px;
+  aspect-ratio: 180 / 420;
+  background: #f4e8d9 center bottom / contain no-repeat; /* CRT beige behind the figure */
+  border: 3px solid;
+  border-color: var(--lo) var(--hi) var(--hi) var(--lo);
+}
+/* Each garment fits inside its body-part box (percentages of the frame, matching the
+   silhouette: shoulders y≈86, waist y≈196, ankles y≈386). try-on.js trims the padding off
+   each cutout first, so object-fit: contain makes the garment fill the box. */
+.layer {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  object-fit: contain;
+  object-position: center top;
+  pointer-events: none;
+  filter: drop-shadow(1px 2px 1px rgba(0, 0, 0, 0.25));
+}
+.layer.torso  { top: 19.5%; height: 31%; width: 76%; z-index: 3; } /* tops sit over the waistband */
+.layer.bottom { top: 46.5%; height: 46%; width: 60%; z-index: 1; } /* wide enough that trousers reach the ankles */
+.layer.dress  { top: 19.5%; height: 60%; width: 80%; z-index: 1; }
+.layer.shoes  { top: 88.5%; height: 9.5%; width: 44%; z-index: 2; object-position: center bottom; }
+
+.pickers { display: grid; gap: 12px; }
+.picker { display: grid; gap: 2px; }
+.picker-label { font-size: 0.9rem; color: var(--lo); text-transform: uppercase; letter-spacing: 0.1em; }
+.picker-name { text-transform: uppercase; letter-spacing: 0.05em; overflow-wrap: anywhere; }
+.picker .vcr { display: flex; gap: 4px; }
+.picker .vcr button { padding: 0 12px; font-size: 1rem; letter-spacing: -0.15em; }
+.avatar-reset { margin-top: 8px; }
+.feedback-msg { text-align: center; min-height: 1.2em; margin: -8px 0 8px; }
 
 /* --- Phones: drop the bezel, stack everything --- */
 @media (max-width: 860px) {
@@ -283,6 +330,7 @@ input[type=file] { max-width: 100%; }
   .screen { border-radius: 0; border: 0; }
   .desktop { grid-template-columns: 1fr; grid-template-rows: none; padding: 16px; } /* one column, any height */
   #carousels { height: 600px; } /* still fixed, so dress vs separates doesn't jump */
-  .stage { order: -1; } /* clothes first, above STATUS */
+  .stage, .dressing-room { order: -1; } /* clothes first, above STATUS */
+  .mannequin { height: 520px; }
   .verdict { font-size: 2.2rem; }
 }

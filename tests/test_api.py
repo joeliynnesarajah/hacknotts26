@@ -41,7 +41,9 @@ def test_upload_photo():
                     data={"name": "Test red top"})
     assert r.status_code == 200
     item = r.json()["item"]
-    assert item["colors"][0].startswith("#c")  # red detected
+    # red detected (exact shade varies: rembg softens edges, so #c0392b can come out as #be392b)
+    r_, g_, b_ = (int(item["colors"][0][i:i + 2], 16) for i in (1, 3, 5))
+    assert r_ > 150 and g_ < 100 and b_ < 100, item["colors"][0]
     client.delete(f"/api/items/{item['id']}")
 
 

@@ -18,6 +18,10 @@ Endpoints
   GET    /api/suggest                 best outfits for today's weather
   GET    /api/weather                 today's weather
   POST   /api/feedback                thumbs up/down (retrains the taste model)
+  GET    /api/avatar                  the try-on photo's URL, or null for the Cher silhouette
+  POST   /api/avatar                  upload a full-body photo -> background removed -> try-on figure
+  DELETE /api/avatar                  back to the Cher silhouette
+  GET    /try-on                      the paper-doll try-on page
 
 TODO (Person 4):
   - [ ] Users and login if needed
@@ -190,6 +194,49 @@ def feedback(fb: Feedback):
     return {"saved": True, "taste_model_trained": taste.model is not None}
 
 
+# ---- try-on avatar: your own photo as the paper doll ----
+AVATAR_PATH = ROOT / "data" / "images" / "avatar.png"
+
+
+def avatar_url() -> Optional[str]:
+    """URL of the saved avatar, with its save time so the browser never shows a stale copy."""
+    if not AVATAR_PATH.is_file():
+        return None
+    return f"/images/{AVATAR_PATH.name}?v={AVATAR_PATH.stat().st_mtime_ns}"
+
+
+def make_avatar(img: Image.Image) -> None:
+    from input_pipeline.background import fit_to_frame, remove_background
+    AVATAR_PATH.parent.mkdir(parents=True, exist_ok=True)
+    fit_to_frame(remove_background(img)).save(AVATAR_PATH)
+
+
+@app.post("/api/avatar")
+async def upload_avatar(photo: UploadFile = File(...)):
+    try:
+        img = Image.open(io.BytesIO(await photo.read()))
+        img.load()
+    except Exception:
+        raise HTTPException(400, "That file isn't an image")
+    try:
+        await run_in_threadpool(make_avatar, img)  # background removal is slow; keep it off the event loop
+    except Exception as exc:
+        logging.getLogger(__name__).exception("avatar failed")
+        raise HTTPException(400, f"Couldn't process that photo ({type(exc).__name__})")
+    return {"url": avatar_url()}
+
+
+@app.get("/api/avatar")
+def get_avatar():
+    return {"url": avatar_url()}
+
+
+@app.delete("/api/avatar")
+def delete_avatar():
+    AVATAR_PATH.unlink(missing_ok=True)
+    return {"url": None}
+
+
 # ---- static files: item images + Person 3's frontend ----
 app.mount("/images", StaticFiles(directory=ROOT / "data" / "images"), name="images")
 app.mount("/static", StaticFiles(directory=ROOT / "frontend"), name="static")
@@ -198,3 +245,8 @@ app.mount("/static", StaticFiles(directory=ROOT / "frontend"), name="static")
 @app.get("/")
 def index():
     return FileResponse(ROOT / "frontend" / "index.html")
+
+
+@app.get("/try-on")
+def try_on():
+    return FileResponse(ROOT / "frontend" / "try-on.html")

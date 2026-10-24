@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Wardrobe Try-On</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&display=swap">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <!-- PERSON 3 — Paper-doll try-on, like Cher's closet computer dressing her on screen.
+       Same CRT shell as the closet page (index.html); the logic is in try-on.js.
+       Clothes are the item cutouts, layered over a figure: the Cher silhouette by default,
+       or your own photo (POST /api/avatar removes its background). -->
+  <div class="monitor">
+    <div class="screen">
+      <header class="titlebar">
+        <span>WARDROBE · TRY-ON</span>
+        <span class="titlebar-right">
+          <span id="weather" class="weather">Loading weather…</span>
+          <button id="sound-toggle" class="sound-toggle" type="button">♪ on</button>
+        </span>
+      </header>
+
+      <main class="desktop">
+        <!-- Left: MATCH/MISMATCH, score and reasons -->
+        <aside class="window status">
+          <div class="win-title">STATUS</div>
+          <div class="win-body">
+            <div id="verdict" class="verdict">Pick an outfit</div>
+            <div id="score" class="score"></div>
+            <ul id="reasons" class="reasons"></ul>
+          </div>
+        </aside>
+
+        <!-- Middle: the figure with the outfit layered on top -->
+        <section class="window dressing-room">
+          <div class="win-title">DRESSING ROOM</div>
+          <div class="win-body">
+            <div id="mannequin" class="mannequin" aria-label="Outfit preview">
+              <!-- try-on.js adds one <img class="layer ..."> per item -->
+            </div>
+          </div>
+        </section>
+
+        <!-- Right: one ◀◀ ▶ ▶▶ row per slot, and the avatar controls -->
+        <aside class="side">
+          <div class="window">
+            <div class="win-title">CLOTHES</div>
+            <div id="pickers" class="win-body pickers"></div>
+          </div>
+          <div class="window">
+            <div class="win-title">MODEL</div>
+            <div class="win-body">
+              <form id="avatar-form">
+                <input type="file" name="photo" accept="image/*" required>
+                <button type="submit">Use my photo</button>
+              </form>
+              <button id="avatar-reset" type="button" class="avatar-reset" hidden>Back to Cher</button>
+              <p id="avatar-msg" class="msg">Stand straight, facing the camera, full body in shot.</p>
+            </div>
+          </div>
+        </aside>
+      </main>
+
+      <div class="controls">
+        <button id="suggest" class="big blue">Dress me</button>
+        <button id="like" class="big" title="I like this">Love it</button>
+        <button id="dislike" class="big" title="Not for me">As if!</button>
+      </div>
+      <p id="feedback-msg" class="msg feedback-msg" role="status"></p>
+
+      <div id="stamp" class="stamp" aria-hidden="true"></div>
+
+      <nav class="mode menubar">
+        <button data-mode="separates" class="active">Separates</button>
+        <button data-mode="dress">Dresses</button>
+        <a class="menubar-link" href="/">Closet ▸</a>
+      </nav>
+    </div>
+  </div>
+
+  <script src="/static/sounds.js"></script>
+  <script src="/static/try-on.js"></script>
+</body>
+</html>

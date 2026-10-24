@@ -42,6 +42,23 @@ def _remove_light_background(img: Image.Image, threshold: int = 235) -> Image.Im
     return Image.fromarray(rgba)
 
 
+def fit_to_frame(img: Image.Image, width: int = 360, height: int = 840) -> Image.Image:
+    """Cut-out person -> transparent width x height canvas (the try-on figure's 180:420 shape).
+
+    Scaled so the head starts ~2.5% from the top and the feet end ~2% from the bottom,
+    centred — the same placement as frontend/cher-silhouette.svg, so the clothes boxes
+    line up as well as they can for a photo taken in a normal standing pose."""
+    bbox = img.getbbox()
+    if bbox:
+        img = img.crop(bbox)
+    top, bottom = round(height * 0.025), round(height * 0.02)
+    scale = min(width * 0.96 / img.width, (height - top - bottom) / img.height)
+    img = img.resize((max(1, round(img.width * scale)), max(1, round(img.height * scale))), Image.LANCZOS)
+    canvas = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    canvas.paste(img, ((width - img.width) // 2, height - bottom - img.height), img)
+    return canvas
+
+
 def crop_to_content(img: Image.Image, pad: int = 10) -> Image.Image:
     bbox = img.getbbox()  # bounding box of non-transparent pixels
     if not bbox:

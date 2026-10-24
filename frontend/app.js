@@ -163,6 +163,7 @@ function flashStamp(text, kind) {
   stamp.className = "stamp " + kind; // removing "show" stops any flash in progress
   void stamp.offsetWidth; // restart the animation if it's already running
   stamp.classList.add("show"); // adding "show" starts the blink animation
+  if (typeof Sound !== "undefined") Sound.play(kind); // buzz or chime, from sounds.js
 }
 
 // Ask the API to score whatever is on screen, then show the result.
