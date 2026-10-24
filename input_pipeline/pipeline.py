@@ -11,7 +11,10 @@ import sys
 import uuid
 from pathlib import Path
 
+from dotenv import load_dotenv
 from PIL import Image
+
+load_dotenv()  # so `python -m input_pipeline.pipeline` sees the same keys as the server
 
 from input_pipeline.background import crop_to_content, remove_background
 from input_pipeline.colors import dominant_colors

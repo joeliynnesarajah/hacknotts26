@@ -17,6 +17,10 @@ from datetime import date
 from pathlib import Path
 from typing import List, Optional
 
+from dotenv import load_dotenv
+
+load_dotenv()  # .env next to the repo root; existing env vars win, so tests are unaffected
+
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
