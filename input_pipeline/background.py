@@ -9,14 +9,28 @@ TODO (Person 1):
   - [ ] Test rembg on messy real photos (clothes on a bed, on a hanger)
   - [ ] Crop to the item's bounding box and pad to a square
 """
+from functools import lru_cache
+
 import numpy as np
 from PIL import Image
 
+MAX_SIDE = 1024  # phone photos are ~4000px; shrinking first makes every later step much faster
+
+
+@lru_cache(maxsize=1)
+def _rembg_session():
+    """Load rembg's model once and reuse it. Calling rembg.remove() without a session
+    reloads the 176 MB model on every call (~40s per upload instead of ~0.5s)."""
+    from rembg import new_session  # heavy, optional
+    return new_session("u2net")
+
 
 def remove_background(img: Image.Image) -> Image.Image:
+    img = img.copy()
+    img.thumbnail((MAX_SIDE, MAX_SIDE))
     try:
-        from rembg import remove  # heavy, optional
-        return remove(img.convert("RGBA"))
+        from rembg import remove
+        return remove(img.convert("RGBA"), session=_rembg_session())
     except ImportError:
         return _remove_light_background(img)
 

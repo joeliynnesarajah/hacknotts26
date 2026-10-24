@@ -25,6 +25,7 @@ TODO (Person 4):
 """
 import io
 import logging
+import threading
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -53,6 +54,18 @@ TASTE_PATH = db.DB_PATH.with_name("taste_model.joblib")  # lives next to the dat
 app = FastAPI(title="Wardrobe API")
 conn = db.connect()
 db.init(conn)
+
+
+def _warm_up_rembg() -> None:
+    """Load rembg's model in the background at startup, so the first upload isn't slow."""
+    try:
+        from input_pipeline.background import _rembg_session
+        _rembg_session()
+    except ImportError:
+        pass  # rembg not installed: the light-background fallback needs no warm-up
+
+
+threading.Thread(target=_warm_up_rembg, daemon=True).start()
 
 
 def retrain() -> None:
