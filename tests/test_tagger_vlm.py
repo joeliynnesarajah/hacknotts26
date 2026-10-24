@@ -97,26 +97,26 @@ def test_low_confidence_marks_needs_review(monkeypatch):
     assert tags["needs_review"] is True
 
 
-def test_community_model_always_needs_review(monkeypatch):
+def test_community_model_needs_more_confidence(monkeypatch):
     _key(monkeypatch)
-    payload = json.dumps(dict(VALID, confidence=1.0))
-
     monkeypatch.setenv(
-        "POLLINATIONS_MODEL", "community/scriptsnsenses-sys/diffusiongema-26B-free"
+        "POLLINATIONS_MODEL", "community/pegalink/gemini-3.5-flash-lite"
     )
-    _install(monkeypatch, [FakeResponse(200, payload)])
-    community_tags = tagger_vlm.tag_item_pollinations(_img())
 
-    assert community_tags is not None
-    assert community_tags["confidence"] == 1.0  # preserved, not rewritten
-    assert community_tags["needs_review"] is True
+    # 1.0 clears the community bar; 0.30 does not.
+    _install(monkeypatch, [FakeResponse(200, json.dumps(dict(VALID, confidence=1.0)))])
+    sure = tagger_vlm.tag_item_pollinations(_img())
+    assert sure is not None and sure["needs_review"] is False
 
+    _install(monkeypatch, [FakeResponse(200, json.dumps(dict(VALID, confidence=0.30)))])
+    unsure = tagger_vlm.tag_item_pollinations(_img())
+    assert unsure is not None and unsure["needs_review"] is True
+
+    # A first-party model clears the lower threshold at the same confidence.
     monkeypatch.setenv("POLLINATIONS_MODEL", "google/gemini-3.5-flash-lite")
-    _install(monkeypatch, [FakeResponse(200, payload)])
-    google_tags = tagger_vlm.tag_item_pollinations(_img())
-
-    assert google_tags is not None
-    assert google_tags["needs_review"] is False
+    _install(monkeypatch, [FakeResponse(200, json.dumps(dict(VALID, confidence=0.70)))])
+    first_party = tagger_vlm.tag_item_pollinations(_img())
+    assert first_party is not None and first_party["needs_review"] is False
 
 
 def test_formality_and_warmth_are_clamped(monkeypatch):

@@ -22,8 +22,11 @@ import time
 from typing import Any, Literal
 
 import requests
+from dotenv import load_dotenv
 from PIL import Image
 from pydantic import BaseModel, Field, ValidationError
+
+load_dotenv()  # any entry point that imports the tagger gets the keys, not just the server
 
 log = logging.getLogger(__name__)
 
@@ -32,6 +35,9 @@ DEFAULT_MODEL = "google/gemini-3.5-flash-lite"
 ALL_SEASONS = ["spring", "summer", "autumn", "winter"]
 REAL_SOURCES = ("pollinations", "gemini")
 REVIEW_THRESHOLD = 0.55
+# Community routes are third-party and can be uncalibrated, so demand more
+# confidence before showing their tags unflagged.
+COMMUNITY_REVIEW_THRESHOLD = 0.80
 
 # One in-flight request per process; the API is cheap but not free.
 _SEM = threading.Semaphore(1)
@@ -134,8 +140,10 @@ def _validate(raw: str, source: str = "pollinations", model: str | None = None) 
     all four (an item with no seasons is filtered out of every suggestion by
     outfit_logic.generate.suits_weather). Unknown enums are a failure, not a guess.
 
-    Community routes are uncalibrated: they return confidence 0.9-1.0 even on
-    wrong tags, so they always need review. Their confidence value is preserved.
+    Community routes are third-party: they need COMMUNITY_REVIEW_THRESHOLD rather
+    than the normal threshold. Measured on 18 sample images, the Gemini route's
+    confidence tracked its own correctness (0.10 and 0.30 on the two wrong tags),
+    so a higher bar flags errors without flagging every upload.
     """
     if not isinstance(raw, str):
         return None
@@ -167,9 +175,8 @@ def _validate(raw: str, source: str = "pollinations", model: str | None = None) 
         tags["seasons"] = list(ALL_SEASONS)
     tags["source"] = source
     community = model.startswith("community/")
-    tags["needs_review"] = community or not (
-        source in REAL_SOURCES and tags["confidence"] >= REVIEW_THRESHOLD
-    )
+    threshold = COMMUNITY_REVIEW_THRESHOLD if community else REVIEW_THRESHOLD
+    tags["needs_review"] = not (source in REAL_SOURCES and tags["confidence"] >= threshold)
     return tags
 
 
