@@ -18,7 +18,6 @@ Endpoints
   GET    /api/suggest                 best outfits for today's weather
   GET    /api/weather                 today's weather
   POST   /api/feedback                thumbs up/down (retrains the taste model)
-  POST   /api/worn                    record that an outfit was worn today
 
 TODO (Person 4):
   - [ ] Users and login if needed
@@ -177,12 +176,11 @@ def weather(lat: Optional[float] = None, lon: Optional[float] = None):
 
 
 @app.get("/api/suggest", response_model=List[ScoredOutfit])
-def suggest_outfits(top_n: int = 5, temperature_c: Optional[float] = None, avoid_recent: bool = True):
+def suggest_outfits(top_n: int = 5, temperature_c: Optional[float] = None):
     w = get_weather()
     if temperature_c is not None:  # handy for testing: /api/suggest?temperature_c=3
         w.temperature_c = temperature_c
-    exclude = db.recently_worn(conn) if avoid_recent else set()
-    return suggest(db.list_items(conn), w, taste, exclude, top_n)
+    return suggest(db.list_items(conn), w, taste, exclude_ids=set(), top_n=top_n)
 
 
 @app.post("/api/feedback")
@@ -190,12 +188,6 @@ def feedback(fb: Feedback):
     db.save_feedback(conn, fb)
     retrain()
     return {"saved": True, "taste_model_trained": taste.model is not None}
-
-
-@app.post("/api/worn")
-def worn(outfit: Outfit):
-    db.save_worn(conn, outfit.item_ids)
-    return {"saved": True}
 
 
 # ---- static files: item images + Person 3's frontend ----

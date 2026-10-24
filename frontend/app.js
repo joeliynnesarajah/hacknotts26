@@ -105,6 +105,56 @@ function renderFlatlay(outfit) {
   $("flatlay").innerHTML = outfit.map((it) => `<img src="/${it.image}" alt="${esc(it.name)}">`).join("");
 }
 
+function renderWardrobe() {
+  const list = $("wardrobe-items");
+  list.innerHTML = "";
+  if (!items.length) {
+    list.textContent = "Your wardrobe is empty.";
+    return;
+  }
+
+  for (const item of items) {
+    const row = document.createElement("article");
+    row.className = "wardrobe-item";
+    row.innerHTML = `
+      <img src="/${esc(item.image)}" alt="${esc(item.name)}">
+      <div class="wardrobe-item-info">
+        <strong>${esc(item.name)}</strong>
+        <span>${esc(item.category)}</span>
+      </div>
+      <button type="button" class="wardrobe-delete">Delete</button>`;
+    row.querySelector("button").onclick = async (event) => {
+      if (!window.confirm(`Delete "${item.name}" from your wardrobe?`)) return;
+      const button = event.currentTarget;
+      button.disabled = true;
+      $("wardrobe-msg").textContent = "";
+      try {
+        await api(`/api/items/${encodeURIComponent(item.id)}`, { method: "DELETE" });
+        const selected = Object.fromEntries(
+          [...new Set(items.map((it) => it.category))]
+            .map((category) => [category, ofCategory(category)[index[category] || 0]?.id]),
+        );
+        items = items.filter((it) => it.id !== item.id);
+        delete tagMeta[item.id];
+        for (const [category, selectedId] of Object.entries(selected)) {
+          const categoryItems = ofCategory(category);
+          const selectedIndex = categoryItems.findIndex((it) => it.id === selectedId);
+          index[category] = selectedIndex >= 0
+            ? selectedIndex
+            : Math.min(index[category] || 0, Math.max(categoryItems.length - 1, 0));
+        }
+        $("wardrobe-msg").textContent = `"${item.name}" deleted.`;
+        renderWardrobe();
+        refresh();
+      } catch (err) {
+        $("wardrobe-msg").textContent = `Couldn't delete "${item.name}": ${err.message}`;
+        button.disabled = false;
+      }
+    };
+    list.appendChild(row);
+  }
+}
+
 // Flash the verdict across the whole screen, like the Clueless closet.
 // `kind` is "match" or "mismatch" and picks the colour in style.css (.stamp.match / .stamp.mismatch).
 function flashStamp(text, kind) {
@@ -172,6 +222,13 @@ async function init() {
   items = await api("/api/items");
   refresh();
 
+  $("show-wardrobe").onclick = () => {
+    $("wardrobe-msg").textContent = "";
+    renderWardrobe();
+    $("wardrobe-dialog").showModal();
+  };
+  $("wardrobe-close").onclick = () => $("wardrobe-dialog").close();
+
   // Weather in the title bar, e.g. "12°C, raining · autumn".
   // Display only — the backend fetches its own weather when suggesting outfits.
   api("/api/weather").then((w) => {
@@ -198,11 +255,6 @@ async function init() {
   };
   $("like").onclick = () => sendFeedback(true);
   $("dislike").onclick = () => sendFeedback(false);
-  // WEAR TODAY — logged so DRESS ME skips these items for a few days
-  $("wear").onclick = async () => {
-    await api("/api/worn", { method: "POST", body: JSON.stringify({ item_ids: currentOutfit().map((i) => i.id) }) });
-    $("upload-msg").textContent = "Noted — these won't be suggested for a few days.";
-  };
 
   // ADD CLOTHES — send the photo to the backend, which removes the background,
   // tags it with the vision model, then reload the item list so it appears.

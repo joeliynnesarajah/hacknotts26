@@ -62,13 +62,21 @@
         </aside>
       </main>
 
-      <!-- Big buttons. DRESS ME = suggest an outfit; LOVE IT / AS IF! = thumbs up/down
-           for the taste model; WEAR TODAY = logged so it isn't suggested again for a few days -->
+      <dialog id="wardrobe-dialog" class="wardrobe-dialog">
+        <div class="wardrobe-heading">
+          <h2>MY CLOTHES</h2>
+          <button id="wardrobe-close" type="button" aria-label="Close wardrobe">Close</button>
+        </div>
+        <p id="wardrobe-msg" class="msg" role="status"></p>
+        <div id="wardrobe-items" class="wardrobe-items"></div>
+      </dialog>
+
+      <!-- Big buttons for outfit suggestions, feedback, and wardrobe management. -->
       <div class="controls">
         <button id="suggest" class="big blue">Dress me</button>
         <button id="like" class="big" title="I like this">Love it</button>
         <button id="dislike" class="big" title="Not for me">As if!</button>
-        <button id="wear" class="big">Wear today</button>
+        <button id="show-wardrobe" class="big">My clothes</button>
       </div>
 
       <!-- Invisible overlay that flashes MATCH!/MISMATCH across the screen (flashStamp() in app.js) -->

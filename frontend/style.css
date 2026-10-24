@@ -220,6 +220,38 @@ input[type=text] { /* sunken white text box */
 input[type=file] { max-width: 100%; }
 .msg { margin: 8px 0 0; font-size: 1rem; } /* upload / feedback messages */
 
+/* --- Full wardrobe --- */
+.wardrobe-dialog {
+  width: min(680px, calc(100vw - 32px));
+  max-height: min(80vh, 760px);
+  padding: 12px;
+  color: var(--ink);
+  background: var(--grey);
+  border: 3px solid;
+  border-color: var(--hi) var(--lo) var(--lo) var(--hi);
+  box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.5);
+}
+.wardrobe-dialog::backdrop { background: rgba(0, 0, 0, 0.65); }
+.wardrobe-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.wardrobe-heading h2 { margin: 0; color: var(--blue); letter-spacing: 0.1em; }
+.wardrobe-items { display: grid; gap: 8px; margin-top: 10px; }
+.wardrobe-item {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 6px;
+  background: #fff;
+  border: 2px solid;
+  border-color: var(--lo) var(--hi) var(--hi) var(--lo);
+}
+.wardrobe-item img { width: 64px; height: 64px; object-fit: contain; }
+.wardrobe-item-info { display: grid; min-width: 0; }
+.wardrobe-item-info strong { overflow-wrap: anywhere; }
+.wardrobe-item-info span { color: var(--lo); text-transform: uppercase; }
+.wardrobe-delete { color: #8a1020; }
+.wardrobe-delete:disabled { cursor: wait; opacity: 0.6; }
+
 /* Tag chip: where an item's tags came from. Deliberately quiet — a status line, not a feature. */
 .tagchip {
   display: block;
