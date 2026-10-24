@@ -89,6 +89,28 @@
 .try-on-stamp.match { color: var(--good); }
 .try-on-stamp.mismatch { color: var(--bad); }
 .try-on-stamp.show { animation: try-on-stamp-blink 2.2s steps(1) forwards; }
+.try-on-stamp.reaction {
+  flex-direction: column;
+  gap: 0;
+  letter-spacing: 0.03em;
+  text-shadow: none;
+}
+.try-on-stamp.reaction.love { color: #ff4f9a; }
+.try-on-stamp.reaction.dislike { color: #ffe36e; }
+.try-on-stamp .reaction-icon { display: block; line-height: 0; }
+.try-on-stamp .reaction-icon svg {
+  width: clamp(5rem, 15vw, 12rem);
+  height: clamp(5rem, 15vw, 12rem);
+  fill: currentColor;
+  filter: drop-shadow(5px 5px 0 #17131a) drop-shadow(-2px -2px 0 #fff);
+  image-rendering: pixelated;
+}
+.try-on-stamp .reaction-label {
+  color: #fff;
+  font-size: clamp(1.5rem, 5vw, 4rem);
+  text-shadow: 4px 4px 0 #17131a, -1px -1px 0 #17131a, 1px -1px 0 #17131a, -1px 1px 0 #17131a;
+}
+.try-on-stamp.reaction.show { animation: reaction-pop 1.7s steps(1) forwards; }
 @keyframes try-on-stamp-blink {
   0%, 20%, 40%, 60% { opacity: 1; }
   10%, 30%, 50%, 100% { opacity: 0; }

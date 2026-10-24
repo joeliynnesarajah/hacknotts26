@@ -18,6 +18,14 @@ let renderToken = 0;       // bumping it cancels any render we're still waiting 
 const RENDER_POLL_MS = 2000;
 const RENDER_GIVE_UP_MS = 200000; // longer than the backend's worst case (two models x 90s timeout)
 
+function prepareTryOnAudio() {
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) return null;
+  avatarAudioContext ||= new AudioContextClass();
+  if (avatarAudioContext.state === "suspended") avatarAudioContext.resume();
+  return avatarAudioContext;
+}
+
 async function api(path, options = {}) {
   const response = await fetch(path, {
     headers: options.body instanceof FormData ? {} : { "Content-Type": "application/json" },
@@ -166,10 +174,8 @@ function renderSlots() {
 }
 
 function playMismatch() {
-  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-  if (!AudioContextClass) return;
-  avatarAudioContext ||= new AudioContextClass();
-  const ctx = avatarAudioContext;
+  const ctx = prepareTryOnAudio();
+  if (!ctx) return;
   const first = ctx.createOscillator();
   const second = ctx.createOscillator();
   const gain = ctx.createGain();
@@ -190,10 +196,8 @@ function playMismatch() {
 }
 
 function playMatch() {
-  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-  if (!AudioContextClass) return;
-  avatarAudioContext ||= new AudioContextClass();
-  const ctx = avatarAudioContext;
+  const ctx = prepareTryOnAudio();
+  if (!ctx) return;
   const notes = [659.25, 783.99, 987.77];
   const start = ctx.currentTime;
   for (const [index, frequency] of notes.entries()) {
@@ -221,10 +225,45 @@ function playMatch() {
   }
 }
 
+function playFeedbackSound(liked) {
+  const ctx = prepareTryOnAudio();
+  if (!ctx) return;
+  const notes = liked
+    ? [[880, 0], [1174.66, 0.09], [1567.98, 0.18]]
+    : [[392, 0], [293.66, 0.12], [196, 0.24]];
+  const start = ctx.currentTime;
+  for (const [frequency, offset] of notes) {
+    const oscillator = ctx.createOscillator();
+    const gain = ctx.createGain();
+    const noteStart = start + offset;
+    oscillator.type = liked ? "triangle" : "square";
+    oscillator.frequency.setValueAtTime(frequency, noteStart);
+    oscillator.connect(gain);
+    gain.connect(ctx.destination);
+    gain.gain.setValueAtTime(0.0001, noteStart);
+    gain.gain.exponentialRampToValueAtTime(liked ? 0.12 : 0.09, noteStart + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, noteStart + (liked ? 0.34 : 0.16));
+    oscillator.start(noteStart);
+    oscillator.stop(noteStart + (liked ? 0.35 : 0.17));
+  }
+}
+
 function flashVerdict(verdict) {
   const stamp = $("try-on-stamp");
   stamp.textContent = verdict === "MATCH" ? "MATCH!" : "MISMATCH";
   stamp.className = `try-on-stamp ${verdict.toLowerCase()}`;
+  void stamp.offsetWidth;
+  stamp.classList.add("show");
+}
+
+function flashReaction(liked) {
+  const stamp = $("try-on-stamp");
+  const icon = liked
+    ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 3h6v2h4V3h6v2h2v7h-2v3h-2v2h-2v2h-2v2h-2v-2h-2v-2H8v-2H6v-3H4z"/></svg>'
+    : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3h4v12H3zM9 3h9l3 3v7l-2 3h-3l-3 5-3-1v-5H7V5h2z"/></svg>';
+  const label = liked ? "LOVE IT!" : "UGH, AS IF!";
+  stamp.innerHTML = `<span class="reaction-icon">${icon}</span><span class="reaction-label">${label}</span>`;
+  stamp.className = `try-on-stamp reaction ${liked ? "love" : "dislike"}`;
   void stamp.offsetWidth;
   stamp.classList.add("show");
 }
@@ -359,6 +398,7 @@ async function dressMe() {
 function step(category, delta) {
   const count = itemsFor(category).length;
   if (count < 1) return;
+  prepareTryOnAudio();
   positions[category] = ((positions[category] || 0) + delta + count) % count;
   $("try-on-status").textContent = "";
   refresh(true);
@@ -396,6 +436,9 @@ async function submitFeedback(liked) {
     $("try-on-status").textContent = "Choose at least one item first.";
     return;
   }
+  scoreRequest += 1;
+  flashReaction(liked);
+  playFeedbackSound(liked);
   try {
     await api("/api/feedback", {
       method: "POST",
@@ -431,6 +474,7 @@ async function init() {
 
   document.querySelectorAll(".try-on-modes button").forEach((button) => {
     button.onclick = () => {
+      prepareTryOnAudio();
       mode = button.dataset.mode;
       document.querySelectorAll(".try-on-modes button").forEach((modeButton) =>
         modeButton.classList.toggle("active", modeButton === button));
@@ -468,6 +512,7 @@ async function init() {
 
   $("clothing-upload").onsubmit = async (event) => {
     event.preventDefault();
+    prepareTryOnAudio();
     const form = event.currentTarget;
     const button = $("clothing-upload-button");
     button.disabled = true;
@@ -502,10 +547,19 @@ async function init() {
     }
   };
 
-  $("try-on-dress-me").onclick = () => dressMe();
+  $("try-on-dress-me").onclick = () => {
+    prepareTryOnAudio();
+    dressMe();
+  };
   $("try-on-render").onclick = () => requestRender();
-  $("try-on-like").onclick = () => submitFeedback(true);
-  $("try-on-dislike").onclick = () => submitFeedback(false);
+  $("try-on-like").onclick = () => {
+    prepareTryOnAudio();
+    submitFeedback(true);
+  };
+  $("try-on-dislike").onclick = () => {
+    prepareTryOnAudio();
+    submitFeedback(false);
+  };
   $("try-on-status").textContent = "Choose items to try another look.";
   refresh();
 }

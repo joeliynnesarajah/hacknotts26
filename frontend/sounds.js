@@ -1,4 +1,5 @@
-// Retro beeps for the verdict, shared by the closet (app.js) and try-on (try-on.js) pages.
+// Retro beeps for the verdict, plus the ♪ on/off switch. The closet page (app.js) plays its own
+// sounds and only uses Sound.enabled() from here, so the switch mutes them.
 //   Sound.play("mismatch")  harsh square-wave buzz, two slightly detuned oscillators
 //   Sound.play("match")     bright four-note arpeggio chime
 // A button with id="sound-toggle" on the page turns it on/off (remembered per browser).
@@ -75,5 +76,5 @@ const Sound = (() => {
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", wireToggle);
   else wireToggle();
 
-  return { play };
+  return { play, enabled: () => on };
 })();
