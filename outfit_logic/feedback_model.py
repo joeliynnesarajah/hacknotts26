@@ -9,10 +9,11 @@ the app just uses the rules score.
 TODO (Person 2):
   - [ ] Add CLIP image embeddings as extra features (from Person 1)
   - [ ] Try RandomForestClassifier and compare accuracy
-  - [ ] Save/load the model with joblib instead of retraining every time
 """
+from pathlib import Path
 from typing import List, Optional
 
+import joblib  # installed with scikit-learn
 import numpy as np
 from sklearn.linear_model import LogisticRegression
 
@@ -55,3 +56,19 @@ class TasteModel:
         if self.model is None:
             return None
         return float(self.model.predict_proba([features(items)])[0, 1])
+
+    def save(self, path: Path) -> None:
+        """Save the trained model; an untrained model removes any old file instead."""
+        path = Path(path)
+        if self.model is None:
+            path.unlink(missing_ok=True)
+        else:
+            joblib.dump(self.model, path)
+
+    @classmethod
+    def load(cls, path: Path) -> "TasteModel":
+        """Load a saved model, or return an untrained one if there's no file."""
+        m = cls()
+        if Path(path).is_file():
+            m.model = joblib.load(path)
+        return m

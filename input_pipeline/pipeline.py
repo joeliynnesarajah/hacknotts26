@@ -9,6 +9,7 @@ Try it on its own:
 import sys
 import uuid
 from pathlib import Path
+from typing import Optional
 
 from PIL import Image
 
@@ -19,30 +20,54 @@ from shared.schema import Item
 
 ROOT = Path(__file__).resolve().parent.parent
 IMAGES_DIR = ROOT / "data" / "images"
+DEFAULT_NAME = "New item"
 
 
-def process_photo(photo: Image.Image, name: str = "New item") -> tuple[Item, bool]:
-    """Returns (item, needs_review)."""
+def process_photo_with_meta(photo: Image.Image, name: Optional[str] = None,
+                            item_id: Optional[str] = None) -> tuple[Item, bool, dict]:
+    """Returns (item, needs_review, tag_meta).
+
+    tag_meta = {source, confidence, needs_review, suggested_name}.
+    A name the user typed always wins; the tagger's name is only used when they
+    left it blank (or as the form default), and is always kept as suggested_name.
+    Pass item_id to get a stable id (the pretag script does); otherwise it's random.
+    """
     cutout = crop_to_content(remove_background(photo))
-    item_id = uuid.uuid4().hex[:8]
+    item_id = item_id or uuid.uuid4().hex[:8]
     IMAGES_DIR.mkdir(parents=True, exist_ok=True)
     cutout.save(IMAGES_DIR / f"{item_id}.png")
 
     tags = tag_item(cutout)
+    typed = (name or "").strip()
     item = Item(
         id=item_id,
-        name=name,
+        name=typed if typed and typed != DEFAULT_NAME else tags["name"],
         image=f"images/{item_id}.png",
         category=tags["category"],
         colors=dominant_colors(cutout),
         pattern=tags["pattern"],
         formality=tags["formality"],
+        seasons=tags["seasons"],
+        warmth=tags["warmth"],
     )
-    return item, tags["needs_review"]
+    meta = {
+        "source": tags["source"],
+        "confidence": tags["confidence"],
+        "needs_review": tags["needs_review"],
+        "suggested_name": tags["name"],
+    }
+    return item, tags["needs_review"], meta
+
+
+def process_photo(photo: Image.Image, name: str = DEFAULT_NAME) -> tuple[Item, bool]:
+    """Backward-compatible: returns (item, needs_review)."""
+    item, needs_review, _ = process_photo_with_meta(photo, name)
+    return item, needs_review
 
 
 if __name__ == "__main__":
-    item, review = process_photo(Image.open(sys.argv[1]), name=Path(sys.argv[1]).stem)
+    item, review, meta = process_photo_with_meta(Image.open(sys.argv[1]), name=Path(sys.argv[1]).stem)
     print(item.model_dump_json(indent=2))
-    if review:
-        print("\n(Tags are placeholders — install requirements-ml.txt for CLIP tagging.)")
+    print(f"\nsource: {meta['source']}  confidence: {meta['confidence']}  needs_review: {review}")
+    if meta["source"] == "placeholder":
+        print("(Placeholder tags - add a key to keys.env, or install requirements-ml.txt for CLIP.)")

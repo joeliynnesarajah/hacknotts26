@@ -4,7 +4,7 @@ from pathlib import Path
 
 from outfit_logic.feedback_model import TasteModel
 from outfit_logic.generate import generate_outfits
-from outfit_logic.rules import is_neutral, score_outfit
+from outfit_logic.rules import is_neutral, score_outfit, shoe_penalty
 from shared.schema import Item, Weather
 
 ITEMS = {i["id"]: Item(**i) for i in json.loads(
@@ -54,3 +54,39 @@ def test_taste_model_needs_enough_data():
     liked = [True, False] * 6
     assert model.train(outfits, liked) is True
     assert model.predict(outfit("t1", "b1", "s1")) > model.predict(outfit("t2", "b5", "s3"))
+
+
+def make(id, category, color):
+    return Item(id=id, name=id, image="", category=category, colors=[color], formality=2)
+
+
+def test_shoe_rule_neutral_shoes_are_fine():
+    # white trainers + blue jeans
+    assert shoe_penalty([make("jeans", "bottom", "#3b5b8a"), make("trainers", "shoes", "#f4f4f2")]) == (0.0, [])
+
+
+def test_shoe_rule_black_on_black_is_fine():
+    assert shoe_penalty([make("trousers", "bottom", "#1b1b1b"), make("loafers", "shoes", "#141414")]) == (0.0, [])
+
+
+def test_shoe_rule_bold_shoes_with_neutral_bottoms_are_fine():
+    # red shoes + jeans: a pop of color, not a clash
+    assert shoe_penalty([make("jeans", "bottom", "#3b5b8a"), make("red shoes", "shoes", "#c0392b")])[0] == 0
+
+
+def test_shoe_rule_clashing_shoes_are_penalised():
+    # red shoes + green trousers
+    penalty, reasons = shoe_penalty([make("green trousers", "bottom", "#3e8e41"),
+                                     make("red shoes", "shoes", "#c0392b")])
+    assert penalty > 0 and "red shoes" in reasons[0]
+
+
+def test_taste_model_save_and_load(tmp_path):
+    model = TasteModel()
+    model.train([outfit("t1", "b1", "s1"), outfit("t2", "b5", "s3")] * 6, [True, False] * 6)
+    path = tmp_path / "taste.joblib"
+    model.save(path)
+    loaded = TasteModel.load(path)
+    assert loaded.predict(outfit("t1", "b1", "s1")) == model.predict(outfit("t1", "b1", "s1"))
+    TasteModel().save(path)  # untrained -> removes the stale file
+    assert not path.exists() and TasteModel.load(path).model is None
