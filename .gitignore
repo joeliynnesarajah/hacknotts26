@@ -34,3 +34,8 @@ Thumbs.db
 
 # Uploaded cutouts (8-hex ids); the seed images have 2-char names
 data/images/????????.png
+# Your try-on photo (POST /api/avatar)
+data/images/avatar.png
+# Try-on render cache. Renders of people's own photos must never be committed; the demo's
+# hero renders (scripts/prerender.py, stock model only) are force-added: git add -f data/renders/<key>.*
+data/renders/

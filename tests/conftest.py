@@ -14,3 +14,7 @@ os.environ["WARDROBE_DB"] = str(_tmp / "test.db")
 os.environ["POLLINATIONS_API_KEY"] = ""
 os.environ["GEMINI_API_KEY"] = ""
 os.environ["TAGGER_PROVIDER_ORDER"] = "placeholder"
+# Try-on renders go to a throwaway folder too, in live mode, with no real key (tests fake the network)
+os.environ["TRYON_RENDER_DIR"] = str(_tmp / "renders")
+os.environ["TRYON_MODE"] = "live"
+os.environ.pop("TRYON_MODELS", None)

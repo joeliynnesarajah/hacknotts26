@@ -2,9 +2,11 @@
 Draws simple placeholder cut-outs (transparent PNGs) for every item in
 data/sample_items.json, so the app has images before real photos exist.
 
-Run:  python scripts/make_placeholders.py
-Replace these with real background-removed photos as soon as Person 1's pipeline works.
+Run:  python scripts/make_placeholders.py [--force]
+The sample items now have real product photos (scripts/make_product_photos.py), so existing
+images are skipped: this only fills in missing ones. --force redraws everything as placeholders.
 """
+import sys
 import json
 from pathlib import Path
 
@@ -67,11 +69,16 @@ def draw_item(item):
 
 def main():
     items = json.loads((DATA / "sample_items.json").read_text())
+    force = "--force" in sys.argv
+    drawn = 0
     for item in items:
         out = DATA / item["image"]
+        if out.exists() and not force:  # don't overwrite real product photos
+            continue
         out.parent.mkdir(parents=True, exist_ok=True)
         draw_item(item).save(out)
-    print(f"Drew {len(items)} placeholder images in {DATA / 'images'}")
+        drawn += 1
+    print(f"Drew {drawn} placeholder images in {DATA / 'images'} (existing images kept; --force to redraw)")
 
 
 if __name__ == "__main__":
